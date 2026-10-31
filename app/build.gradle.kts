@@ -24,4 +24,5 @@ dependencies {
     implementation(project(":service:download"))
     implementation(project(":notification"))
     implementation(libs.okhttp)
+    implementation("androidx.core:core:1.15.0")
 }
