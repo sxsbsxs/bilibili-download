@@ -7,10 +7,10 @@ android {
     compileSdk = 35
     defaultConfig {
         applicationId = "com.sxsbsxs.bilibilidownload"
-        minSdk = 23
+        minSdk = 24
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.6.0"
+        versionCode = 7
+        versionName = "0.7.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
@@ -28,4 +28,5 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
     implementation("androidx.media3:media3-session:1.5.1")
+    implementation("dev.ffmpegkit-maintained:ffmpeg-kit-full:8.1.9")
 }
