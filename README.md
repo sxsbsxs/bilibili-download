@@ -26,6 +26,7 @@ An independent Android Bilibili downloader. The Android host and download engine
 - Account center: created favorite folders and their resources, watch history, watch-later, recent likes and own submissions (login required; favorite folders/resources, likes and uploads support paging; API coverage still needs real-account validation).
 - Local resource library: scan the configured Download subfolder, filter videos/audio/subtitles/data, play media in-app with Media3, inspect metadata, extract existing AAC tracks to M4A, remux supported tracks to MP4, open externally, share/export and delete files.
 - Convert Bilibili subtitle JSON to SRT and danmaku XML to CSV, then save the files to the configured Download subfolder on Android 10+.
+- Media processing: inspect metadata, extract AAC audio losslessly when available, use FFmpeg to extract/transcode audio to M4A, remux supported tracks, or transcode media to MP4 (MPEG-4 video + AAC).
 - Light / dark WebView UI with persisted download subfolder, filename template, quality preference, intermediate-stream retention and picture-in-picture settings.
 
 ## Known limitations
@@ -35,7 +36,8 @@ An independent Android Bilibili downloader. The Android host and download engine
 - DASH muxing uses Android MediaMuxer, not FFmpeg; codec/container support varies by device.
 - Batch pause / resume applies to app-owned tasks. Legacy Android DownloadManager tasks can be removed but cannot be paused or resumed through this app UI.
 - QR login, Cookie persistence, background service and media exports are implemented in code but still require real-device and real-account validation.
-- FFmpeg transcoding and broad container conversion, playlists, audio spectrum, arbitrary SAF destination selection and automatic post-download processing are not implemented. Media3 playback and MediaExtractor/MediaMuxer processing still need real-device codec and background-playback validation.
+- Advanced FFmpeg codec profiles, GPU acceleration, broad output-container selection, playlists, audio spectrum, arbitrary SAF destination selection and automatic post-download processing are not implemented. Media3 playback and FFmpeg/MediaExtractor processing still need real-device codec and background-playback validation.
+- The maintained FFmpegKit LGPL AAR requires Android 7.0 (API 24) or newer and ships arm64-v8a / x86_64 native libraries. See THIRD_PARTY_NOTICES.md.
 
 ## Build
 
