@@ -139,6 +139,6 @@ fun HomeScreen(context: Context) {
 @Composable
 private fun FlowRowCompat(items: List<StreamOption>, content: @Composable (StreamOption) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        items.chunked(3).forEach { row -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { row.forEach(content) } }
+        items.chunked(3).forEach { row -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { row.forEach { item -> content(item) } } }
     }
 }
