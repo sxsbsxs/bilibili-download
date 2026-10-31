@@ -25,11 +25,13 @@ class PlayerActivity : Activity() {
     private lateinit var titleView: TextView
     private lateinit var speedButton: Button
     private var speedIndex = 0
+    private var pipEnabled = true
     private val speeds = floatArrayOf(1f, 1.25f, 1.5f, 1.75f, 2f)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val audioOnly = intent.getBooleanExtra(EXTRA_AUDIO, false)
+        pipEnabled = intent.getBooleanExtra(EXTRA_PIP, true)
         val title = intent.getStringExtra(EXTRA_TITLE).orEmpty().ifBlank { "BiliDownload 播放器" }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -128,7 +130,7 @@ class PlayerActivity : Activity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+        if (pipEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !intent.getBooleanExtra(EXTRA_AUDIO, false) && controller?.isPlaying == true) {
             enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build())
         }
@@ -146,5 +148,6 @@ class PlayerActivity : Activity() {
         const val EXTRA_URI = "media_uri"
         const val EXTRA_TITLE = "media_title"
         const val EXTRA_AUDIO = "audio_only"
+        const val EXTRA_PIP = "pip_enabled"
     }
 }
