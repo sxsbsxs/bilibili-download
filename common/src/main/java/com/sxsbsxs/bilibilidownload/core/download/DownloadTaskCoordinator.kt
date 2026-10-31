@@ -203,7 +203,7 @@ class DownloadTaskCoordinator(context: Context) {
             }
             if (!completed) throw IOException("下载流地址刷新后仍无法完成下载")
             checkActive(task, generation)
-            publish(output, task.title)
+            publish(output, task.title, task.bvid, task.quality)
             task.downloaded = output.length()
             task.total = output.length()
             task.status = 8
@@ -224,7 +224,14 @@ class DownloadTaskCoordinator(context: Context) {
             persist()
         } finally {
             task.call = null
-            if (task.status == 8 || task.cancelled) work.deleteRecursively()
+            if (task.status == 8 || task.cancelled) {
+                if (task.status == 8 && app.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                        .getBoolean("keep_source_tracks", false)) {
+                    File(work, "merged.mp4").delete()
+                } else {
+                    work.deleteRecursively()
+                }
+            }
             synchronized(task) { task.running = false }
             if (task.status == 1 && !task.cancelled && !task.paused) schedule(task)
         }
@@ -460,12 +467,19 @@ class DownloadTaskCoordinator(context: Context) {
         return -1
     }
 
-    private fun publish(file: File, title: String) {
+    private fun publish(file: File, title: String, bvid: String, quality: Int) {
+        val settings = app.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val folder = settings.getString("download_folder", "BilibiliDownload").orEmpty()
+            .replace(Regex("[^A-Za-z0-9 _-]"), "").trim().take(48).ifBlank { "BilibiliDownload" }
+        val template = settings.getString("filename_template", "{title}").orEmpty().ifBlank { "{title}" }
+        val outputName = safeName(template.replace("{title}", title)
+            .replace("{bvid}", bvid.ifBlank { "video" })
+            .replace("{quality}", quality.toString()))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, title + ".mp4")
+                put(MediaStore.Downloads.DISPLAY_NAME, outputName + ".mp4")
                 put(MediaStore.Downloads.MIME_TYPE, "video/mp4")
-                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/BilibiliDownload")
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + folder)
                 put(MediaStore.Downloads.IS_PENDING, 1)
             }
             val uri = app.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
@@ -481,10 +495,11 @@ class DownloadTaskCoordinator(context: Context) {
                 throw e
             }
         } else {
-            val dir = app.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            val base = app.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
                 ?: throw IOException("设备没有可用的下载目录")
+            val dir = File(base, folder)
             dir.mkdirs()
-            file.copyTo(File(dir, title + ".mp4"), overwrite = true)
+            file.copyTo(File(dir, outputName + ".mp4"), overwrite = true)
         }
     }
 
