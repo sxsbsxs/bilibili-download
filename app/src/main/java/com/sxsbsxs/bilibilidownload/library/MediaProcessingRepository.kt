@@ -116,7 +116,8 @@ class MediaProcessingRepository(private val context: Context) {
             val values = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, name)
                 put(MediaStore.Downloads.MIME_TYPE, mime)
-                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/BilibiliDownload")
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" +
+                    (context.getSharedPreferences("app_settings", Context.MODE_PRIVATE).getString("download_folder", "BilibiliDownload") ?: "BilibiliDownload"))
                 put(MediaStore.Downloads.IS_PENDING, 1)
             }
             val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
@@ -133,7 +134,9 @@ class MediaProcessingRepository(private val context: Context) {
                 throw e
             }
         }
-        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: throw IOException("下载目录不可用")
+        val base = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: throw IOException("下载目录不可用")
+        val folder = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE).getString("download_folder", "BilibiliDownload") ?: "BilibiliDownload"
+        val dir = File(base, folder)
         dir.mkdirs()
         val target = File(dir, name)
         source.copyTo(target, overwrite = true)
