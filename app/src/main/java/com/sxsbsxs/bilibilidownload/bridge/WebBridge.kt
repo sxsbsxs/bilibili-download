@@ -172,6 +172,30 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     }
 
     @JavascriptInterface
+    fun pauseDownload(id: Long, requestId: String) {
+        io.execute {
+            val ok = if (id < 0L) dashDownloads.pause(id) else false
+            respond(requestId, JSONObject().put("ok", ok).put("error", if (ok) "" else "该任务暂不支持应用内暂停"))
+        }
+    }
+
+    @JavascriptInterface
+    fun resumeDownload(id: Long, requestId: String) {
+        io.execute {
+            val ok = if (id < 0L) dashDownloads.resume(id) else false
+            respond(requestId, JSONObject().put("ok", ok).put("error", if (ok) "" else "该任务暂不支持应用内恢复"))
+        }
+    }
+
+    @JavascriptInterface
+    fun retryDownload(id: Long, requestId: String) {
+        io.execute {
+            val ok = if (id < 0L) dashDownloads.retry(id) else false
+            respond(requestId, JSONObject().put("ok", ok).put("error", if (ok) "" else "该任务暂不支持应用内重试"))
+        }
+    }
+
+    @JavascriptInterface
     fun setCookie(cookie: String, requestId: String) {
         session.set(cookie)
         respond(requestId, JSONObject().put("ok", true).put("loggedIn", session.isLoggedIn))
