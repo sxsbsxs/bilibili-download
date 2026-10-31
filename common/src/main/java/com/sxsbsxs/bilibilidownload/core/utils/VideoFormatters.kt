@@ -1,0 +1,3 @@
+package com.sxsbsxs.bilibilidownload.core.utils
+fun formatDuration(seconds:Int):String {val h=seconds/3600;val m=seconds%3600/60;val s=seconds%60;return if(h>0)"%d:%02d:%02d".format(h,m,s) else "%02d:%02d".format(m,s)}
+fun formatBytes(bytes:Long):String {if(bytes<0)return "未知";if(bytes<1024)return "$bytes B";val mb=bytes/1024.0/1024.0;return if(mb<1024)"%.1f MB".format(mb) else "%.2f GB".format(mb/1024.0)}
