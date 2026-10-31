@@ -49,8 +49,9 @@ class LocalMediaRepository(private val context:Context) {
 
     fun delete(uriText:String):Boolean {
         val uri=Uri.parse(uriText)
-        return if(Build.VERSION.SDK_INT<Build.VERSION_CODES.Q && uri.scheme=="content") {
-            val file=File(uri.path?:return false);file.delete()
+        return if(Build.VERSION.SDK_INT<Build.VERSION_CODES.Q) {
+            val resource=list().firstOrNull { it.uri.toString()==uriText } ?: return false
+            File(resource.id).delete()
         } else context.contentResolver.delete(uri,null,null)>0
     }
 
