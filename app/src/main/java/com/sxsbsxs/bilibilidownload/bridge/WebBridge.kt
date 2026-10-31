@@ -122,7 +122,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
                             repository.dashStreams(video, null, session.get()).second
                         }
                         val title = info.title + " " + episode.title + " " + episode.longTitle
-                        val id = taskDownloads.enqueue(stream, title, session.get())
+                        val id = taskDownloads.enqueue(stream, title, session.get(), episode.bvid, episode.cid, stream.quality)
                         queued.put(JSONObject().put("epId", epId).put("id", id).put("quality", stream.quality))
                     } catch (e: Exception) {
                         failed.put(JSONObject().put("epId", epId).put("title", episode.title)
@@ -145,7 +145,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
                 val video = videos[token] ?: throw IllegalStateException("视频信息已过期，请重新解析")
                 val page = video.pages.firstOrNull { it.cid == cid }
                 val stream = repository.dashStreamAtQuality(video, quality, page, session.get())
-                val id = taskDownloads.enqueue(stream, title, session.get())
+                val id = taskDownloads.enqueue(stream, title, session.get(), video.bvid, cid, stream.quality)
                 respond(requestId, JSONObject().put("ok", true).put("id", id).put("quality", stream.quality)
                     .put("description", stream.description).put("mode", if (stream.isDash) "dash" else "progressive"))
             } catch (e: Exception) {

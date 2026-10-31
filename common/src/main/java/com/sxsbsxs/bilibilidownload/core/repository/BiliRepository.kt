@@ -66,6 +66,11 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
   throw IOException("所选清晰度没有可用视频流")
  }
 
+ fun refreshStream(bvid:String,cid:Long,quality:Int,cookie:String?=null):DashStreamInfo {
+  if(bvid.isBlank()||cid<=0||quality<=0)throw IOException("缺少刷新视频直链所需的 BV 号、CID 或清晰度")
+  val video=VideoInfo(0,bvid,cid,"","",0,"")
+  return dashStreamAtQuality(video,quality,null,cookie)
+ }
  fun streams(v:VideoInfo,page:VideoPage?=null,cookie:String?=null):Pair<List<StreamOption>,StreamInfo> {
   val (opts,stream)=dashStreams(v,page,cookie)
   if(stream.isDash)throw IOException("该清晰度为 DASH 独立音视频流，请使用 DASH 下载")

@@ -14,6 +14,7 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import com.sxsbsxs.bilibilidownload.core.model.DashStreamInfo
 import com.sxsbsxs.bilibilidownload.core.model.DownloadRecord
+import com.sxsbsxs.bilibilidownload.core.repository.BiliRepository
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -33,13 +34,13 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * App-owned DASH task queue. Task metadata and partial files survive process death.
- * Cookies are deliberately not persisted; only signed stream URLs and task metadata are stored.
+ * App-owned media queue. Partial files and HTTP validators survive process death.
+ * Cookies are memory-only; signed URLs and task metadata are encrypted at rest.
  */
 class DownloadTaskCoordinator(context: Context) {
     private val app = context.applicationContext
     private val prefs = app.getSharedPreferences("dash_download_tasks_v2", Context.MODE_PRIVATE)
-    private val client = OkHttpClient.Builder().followRedirects(true).build()
+    private val client = OkHttpClient.Builder().followRedirects(true).retryOnConnectionFailure(true).build()
     private val executor = Executors.newFixedThreadPool(2)
     private val sequence = AtomicLong()
     private val tasks = ConcurrentHashMap<Long, Task>()
@@ -47,8 +48,8 @@ class DownloadTaskCoordinator(context: Context) {
     private data class Task(
         val id: Long,
         val title: String,
-        val videoUrl: String,
-        val audioUrl: String?,
+        @Volatile var videoUrl: String,
+        @Volatile var audioUrl: String?,
         @Volatile var status: Int = 1,
         @Volatile var downloaded: Long = 0,
         @Volatile var total: Long = 0,
@@ -58,12 +59,23 @@ class DownloadTaskCoordinator(context: Context) {
         @Volatile var cookie: String? = null,
         @Volatile var call: Call? = null,
         @Volatile var generation: Long = 0,
-        @Volatile var running: Boolean = false
+        @Volatile var running: Boolean = false,
+        val bvid: String = "",
+        val cid: Long = 0,
+        val quality: Int = 0,
+        @Volatile var videoEtag: String = "",
+        @Volatile var audioEtag: String = "",
+        @Volatile var videoModified: String = "",
+        @Volatile var audioModified: String = "",
+        @Volatile var videoTotal: Long = 0,
+        @Volatile var audioTotal: Long = 0
     )
+
+    private class ExpiredStreamException(message: String) : IOException(message)
 
     init {
         restoreTasks()
-        tasks.values.filter { it.status == 1 || it.status == 2 }.forEach { task ->
+        tasks.values.filter { it.status == 1 || it.status == 2 || it.status == 3 }.forEach { task ->
             task.status = 1
             persist()
             schedule(task)
@@ -71,10 +83,18 @@ class DownloadTaskCoordinator(context: Context) {
     }
 
     @Synchronized
-    fun enqueue(stream: DashStreamInfo, title: String, cookie: String?): Long {
+    fun enqueue(
+        stream: DashStreamInfo,
+        title: String,
+        cookie: String?,
+        bvid: String = "",
+        cid: Long = 0,
+        quality: Int = stream.quality
+    ): Long {
         require(stream.videoUrl.isNotBlank()) { "视频流地址为空" }
         val id = -(System.currentTimeMillis() * 1000L + sequence.incrementAndGet())
-        val task = Task(id, safeName(title), stream.videoUrl, stream.audioUrl, cookie = cookie)
+        val task = Task(id, safeName(title), stream.videoUrl, stream.audioUrl,
+            cookie = cookie, bvid = bvid, cid = cid, quality = quality)
         tasks[id] = task
         persist()
         schedule(task)
@@ -150,18 +170,33 @@ class DownloadTaskCoordinator(context: Context) {
             work.mkdirs()
             val video = File(work, "video.m4s")
             val audio = File(work, "audio.m4s")
-            download(task.videoUrl, video, task, generation)
-            checkActive(task, generation)
             val output = File(work, "merged.mp4")
-            if (!task.audioUrl.isNullOrBlank()) {
-                download(task.audioUrl!!, audio, task, generation)
-                checkActive(task, generation)
-                task.status = 3
-                persist()
-                mux(video, audio, output)
-            } else {
-                video.copyTo(output, overwrite = true)
+            task.downloaded = video.length() + if (task.audioUrl.isNullOrBlank()) 0L else audio.length()
+            task.total = task.videoTotal + task.audioTotal
+            persist()
+
+            var completed = false
+            for (refreshAttempt in 0..1) {
+                try {
+                    downloadWithRetries(task.videoUrl, video, task, generation, "video")
+                    checkActive(task, generation)
+                    if (!task.audioUrl.isNullOrBlank()) {
+                        downloadWithRetries(task.audioUrl!!, audio, task, generation, "audio")
+                        checkActive(task, generation)
+                        task.status = 3
+                        persist()
+                        mux(video, audio, output)
+                    } else {
+                        video.copyTo(output, overwrite = true)
+                    }
+                    completed = true
+                    break
+                } catch (expired: ExpiredStreamException) {
+                    if (refreshAttempt != 0) throw expired
+                    refreshExpiredStream(task, video, audio, generation)
+                }
             }
+            if (!completed) throw IOException("下载流地址刷新后仍无法完成下载")
             checkActive(task, generation)
             publish(output, task.title)
             task.downloaded = output.length()
@@ -178,7 +213,7 @@ class DownloadTaskCoordinator(context: Context) {
                 }
                 else -> {
                     task.status = 16
-                    task.error = e.message ?: "DASH 下载失败"
+                    task.error = e.message ?: "媒体下载失败"
                 }
             }
             persist()
@@ -190,28 +225,90 @@ class DownloadTaskCoordinator(context: Context) {
         }
     }
 
-    private fun download(url: String, target: File, task: Task, generation: Long) {
+    private fun downloadWithRetries(url: String, target: File, task: Task, generation: Long, part: String) {
+        var attempt = 0
+        while (true) {
+            checkActive(task, generation)
+            try {
+                download(url, target, task, generation, part)
+                return
+            } catch (e: ExpiredStreamException) {
+                throw e
+            } catch (e: IOException) {
+                checkActive(task, generation)
+                if (attempt >= 3) throw e
+                val delay = 1000L shl attempt
+                attempt++
+                Thread.sleep(delay)
+            }
+        }
+    }
+
+    private fun download(
+        url: String,
+        target: File,
+        task: Task,
+        generation: Long,
+        part: String,
+        allowRangeReset: Boolean = true
+    ) {
+        checkActive(task, generation)
         val offset = if (target.exists()) target.length() else 0L
+        val validator = if (part == "video") task.videoEtag else task.audioEtag
+        val modified = if (part == "video") task.videoModified else task.audioModified
         val request = Request.Builder().url(url)
             .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36")
             .header("Referer", "https://www.bilibili.com/")
             .apply {
-                if (offset > 0) header("Range", "bytes=$offset-")
+                if (offset > 0) {
+                    header("Range", "bytes=$offset-")
+                    when {
+                        validator.isNotBlank() -> header("If-Range", validator)
+                        modified.isNotBlank() -> header("If-Range", modified)
+                    }
+                }
                 if (!task.cookie.isNullOrBlank()) header("Cookie", task.cookie!!)
             }.build()
         val call = client.newCall(request)
         task.call = call
+        var restartFromZero = false
         call.execute().use { response ->
-            if (!response.isSuccessful && response.code != 206) throw IOException("下载媒体流失败：HTTP " + response.code)
-            val body = response.body ?: throw IOException("B站返回空媒体流")
+            if (response.code == 403 || response.code == 404 || response.code == 410) {
+                throw ExpiredStreamException("B站视频直链已过期（HTTP ${response.code}），正在尝试重新获取")
+            }
+            if (response.code == 416 && offset > 0 && allowRangeReset) {
+                restartFromZero = true
+                return@use
+            }
+            if (response.code != 200 && response.code != 206) {
+                throw IOException("下载媒体流失败：HTTP " + response.code)
+            }
+            val responseEtag = response.header("ETag").orEmpty()
+            val responseModified = response.header("Last-Modified").orEmpty()
             val append = offset > 0 && response.code == 206
+            if (append) {
+                val range = response.header("Content-Range").orEmpty()
+                val start = Regex("bytes\\s+(\\d+)-").find(range)?.groupValues?.get(1)?.toLongOrNull()
+                val identityChanged = (validator.isNotBlank() && responseEtag.isNotBlank() && validator != responseEtag) ||
+                    (validator.isBlank() && modified.isNotBlank() && responseModified.isNotBlank() && modified != responseModified)
+                if (start != offset || identityChanged) {
+                    restartFromZero = true
+                    return@use
+                }
+            }
+            val body = response.body ?: throw IOException("B站返回空媒体流")
             if (offset > 0 && !append) {
                 target.delete()
-                task.downloaded = 0
+                task.downloaded = (task.downloaded - offset).coerceAtLeast(0L)
             }
+            if (responseEtag.isNotBlank()) setPartEtag(task, part, responseEtag)
+            if (responseModified.isNotBlank()) setPartModified(task, part, responseModified)
             val base = if (append) offset else 0L
-            val length = body.contentLength().coerceAtLeast(0L)
-            task.total = maxOf(task.total, base + length)
+            val rangeTotal = Regex("bytes\\s+\\d+-\\d+/(\\d+)").find(response.header("Content-Range").orEmpty())
+                ?.groupValues?.get(1)?.toLongOrNull()
+            val partTotal = rangeTotal ?: body.contentLength().takeIf { it >= 0L }?.plus(base) ?: 0L
+            if (partTotal > 0) setPartTotal(task, part, partTotal)
+            task.total = task.videoTotal + task.audioTotal
             body.byteStream().use { input ->
                 FileOutputStream(target, append).use { output ->
                     val buffer = ByteArray(64 * 1024)
@@ -232,7 +329,67 @@ class DownloadTaskCoordinator(context: Context) {
             }
         }
         task.call = null
+        if (restartFromZero) {
+            if (!allowRangeReset) throw IOException("服务器续传响应无效，拒绝拼接不完整文件")
+            resetPart(target, task, part, offset)
+            download(url, target, task, generation, part, allowRangeReset = false)
+            return
+        }
         persist()
+    }
+
+    private fun refreshExpiredStream(task: Task, video: File, audio: File, generation: Long) {
+        checkActive(task, generation)
+        if (task.bvid.isBlank() || task.cid <= 0 || task.quality <= 0) {
+            throw IOException("视频直链已过期。此任务缺少可刷新的视频标识，请重新解析后重新下载")
+        }
+        val refreshed = try {
+            BiliRepository().refreshStream(task.bvid, task.cid, task.quality, task.cookie)
+        } catch (e: Exception) {
+            throw IOException("视频直链已过期，重新获取失败：" + (e.message ?: "请重新解析视频"), e)
+        }
+        if (refreshed.quality != task.quality) {
+            throw IOException("刷新后 B 站返回的清晰度发生变化，为避免拼接错误已停止任务")
+        }
+        if (refreshed.isDash != !task.audioUrl.isNullOrBlank()) {
+            throw IOException("刷新后视频流格式发生变化，为避免损坏文件已停止任务")
+        }
+        task.videoUrl = refreshed.videoUrl
+        task.audioUrl = refreshed.audioUrl
+        if (task.videoEtag.isBlank() && task.videoModified.isBlank()) resetPart(video, task, "video", video.length())
+        if (!task.audioUrl.isNullOrBlank() && task.audioEtag.isBlank() && task.audioModified.isBlank()) {
+            resetPart(audio, task, "audio", audio.length())
+        }
+        task.downloaded = video.length() + if (task.audioUrl.isNullOrBlank()) 0L else audio.length()
+        persist()
+    }
+
+    private fun resetPart(file: File, task: Task, part: String, oldLength: Long) {
+        file.delete()
+        task.downloaded = (task.downloaded - oldLength).coerceAtLeast(0L)
+        if (part == "video") {
+            task.videoEtag = ""
+            task.videoModified = ""
+            task.videoTotal = 0
+        } else {
+            task.audioEtag = ""
+            task.audioModified = ""
+            task.audioTotal = 0
+        }
+        task.total = task.videoTotal + task.audioTotal
+        persist()
+    }
+
+    private fun setPartEtag(task: Task, part: String, value: String) {
+        if (part == "video") task.videoEtag = value else task.audioEtag = value
+    }
+
+    private fun setPartModified(task: Task, part: String, value: String) {
+        if (part == "video") task.videoModified = value else task.audioModified = value
+    }
+
+    private fun setPartTotal(task: Task, part: String, value: Long) {
+        if (part == "video") task.videoTotal = value else task.audioTotal = value
     }
 
     private fun mux(video: File, audio: File, output: File) {
@@ -333,7 +490,11 @@ class DownloadTaskCoordinator(context: Context) {
             rows.put(JSONObject().put("id", t.id).put("title", t.title)
                 .put("videoUrl", t.videoUrl).put("audioUrl", t.audioUrl)
                 .put("status", t.status).put("downloaded", t.downloaded)
-                .put("total", t.total).put("error", t.error))
+                .put("total", t.total).put("error", t.error)
+                .put("bvid", t.bvid).put("cid", t.cid).put("quality", t.quality)
+                .put("videoEtag", t.videoEtag).put("audioEtag", t.audioEtag)
+                .put("videoModified", t.videoModified).put("audioModified", t.audioModified)
+                .put("videoTotal", t.videoTotal).put("audioTotal", t.audioTotal))
         }
         prefs.edit().putString("tasks_secure", encrypt(rows.toString())).remove("tasks").apply()
     }
@@ -361,22 +522,17 @@ class DownloadTaskCoordinator(context: Context) {
         val existing = store.getKey(alias, null) as? SecretKey
         if (existing != null) return existing
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-        generator.init(
-            KeyGenParameterSpec.Builder(
-                alias,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-            ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setRandomizedEncryptionRequired(true)
-                .build()
-        )
+        generator.init(KeyGenParameterSpec.Builder(
+            alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setRandomizedEncryptionRequired(true).build())
         return generator.generateKey()
     }
 
     private fun restoreTasks() {
         val raw = try {
-            prefs.getString("tasks_secure", null)?.let { decrypt(it) }
-                ?: prefs.getString("tasks", "[]")
+            prefs.getString("tasks_secure", null)?.let { decrypt(it) } ?: prefs.getString("tasks", "[]")
         } catch (_: Exception) { "[]" }
         val rows = try { JSONArray(raw) } catch (_: Exception) { JSONArray() }
         val migrateLegacy = prefs.contains("tasks")
@@ -386,9 +542,16 @@ class DownloadTaskCoordinator(context: Context) {
             val video = row.optString("videoUrl")
             val audio = row.optString("audioUrl").takeIf { it.isNotBlank() && it != "null" }
             if (id == 0L || video.isBlank()) continue
-            val task = Task(id, row.optString("title", "bilibili_video"), video, audio,
-                row.optInt("status", 1), row.optLong("downloaded"), row.optLong("total"),
-                row.optString("error"))
+            val task = Task(
+                id = id, title = row.optString("title", "bilibili_video"),
+                videoUrl = video, audioUrl = audio,
+                status = row.optInt("status", 1), downloaded = row.optLong("downloaded"),
+                total = row.optLong("total"), error = row.optString("error"),
+                bvid = row.optString("bvid"), cid = row.optLong("cid"), quality = row.optInt("quality"),
+                videoEtag = row.optString("videoEtag"), audioEtag = row.optString("audioEtag"),
+                videoModified = row.optString("videoModified"), audioModified = row.optString("audioModified"),
+                videoTotal = row.optLong("videoTotal"), audioTotal = row.optLong("audioTotal")
+            )
             if (task.status == 2 || task.status == 3) task.status = 1
             tasks[id] = task
         }

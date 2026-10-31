@@ -44,10 +44,10 @@ Legend:
 
 - [x] Progressive durl stream lookup and app-owned single-stream download.
 - [~] DASH video track and audio track parsing via `fnval=4048`.
-- [~] DASH separate-track downloads with HTTP Range resume where the server supports it.
+- [~] DASH separate-track downloads with HTTP Range resume, Content-Range offset checks, and ETag / Last-Modified If-Range validation.
 - [~] Android MediaExtractor / MediaMuxer audio-video MP4 muxing; codec/container compatibility is device-dependent.
 - [~] Quality list and selected-quality requests; 4K/8K/HDR/Dolby/AV1 availability still depends on B站 API response, account rights, source encoding and device support.
-- [~] App-owned task lifecycle for video downloads: persisted task metadata, progress, pause, resume, retry, process recovery, and removal.
+- [~] App-owned task lifecycle: encrypted task metadata, progress, pause/resume/retry, process recovery, removal, bounded network retries, and one automatic signed-URL refresh attempt when video identity metadata is available.
 - [ ] Batch download and quality-mismatch policy.
 - [~] Completion publishes MP4 to Download/BilibiliDownload on Android 10+; older versions use app-specific Downloads storage.
 - [~] Subtitle and danmaku exports still use Android DownloadManager and do not yet share the app-owned pause/resume/retry task engine.
@@ -119,3 +119,17 @@ Do not mark an item complete until its Kotlin implementation, UI connection, and
 - [ ] Real-account verification for restricted episodes, region-limited content, and season section pagination.
 
 The batch UI defaults each episode to "automatic highest available" and lets the user request the episode's quality list individually. A selected quality is resolved at enqueue time; permissions and available quality remain controlled by the Bilibili API.
+
+
+## 10. Download engine resilience (2026-10-31)
+
+- [~] Resume requests use Range and If-Range when ETag or Last-Modified is available.
+- [~] A 206 response is appended only when Content-Range begins at the exact local file length and the saved validator has not changed.
+- [~] If a server ignores Range (200), returns an invalid range, or reports 416, the affected partial file is safely reset rather than concatenated blindly.
+- [~] Transient I/O failures retry up to three additional times with increasing delays while retaining a valid partial file.
+- [~] HTTP 401/403/404/410 signed-stream failures can trigger one Bilibili playurl refresh using the persisted BV ID, CID, and quality.
+- [~] Signed URLs, stream identity, HTTP validators, and per-track expected lengths are stored in the encrypted task record. Cookie values remain memory-only.
+- [ ] Verify Range/validator behavior against multiple Bilibili CDN hosts and devices; server behavior is not uniform.
+- [ ] Persist a secure authenticated session so a post-restart refresh can recover streams that require login.
+
+Safety rule: when a refreshed signed URL has no comparable ETag or Last-Modified validator, existing partial bytes for that track are discarded before downloading from byte zero. The app never assumes two different signed URLs point to identical byte streams. No user-owned backend server is required; requests go directly from the Android app to Bilibili's media CDN.
