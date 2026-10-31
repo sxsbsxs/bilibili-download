@@ -122,6 +122,14 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
   return root.optJSONObject("data")?:throw IOException("账号内容为空")
  }
 
+ fun upVideos(mid:Long,page:Int=1,cookie:String?=null):org.json.JSONObject {
+  if(mid<=0)throw IOException("UP 主 UID 无效")
+  val url="https://api.bilibili.com/x/space/arc/search?mid="+mid+"&pn="+page.coerceIn(1,100)+"&ps=20&order=pubdate"
+  val root=http.getJson(url,cookie)
+  if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","读取 UP 主投稿失败"))
+  return root.optJSONObject("data")?:throw IOException("UP 主投稿为空")
+ }
+
  fun favoriteResources(mediaId:Long,page:Int=1,cookie:String):org.json.JSONObject {
   if(mediaId<=0)throw IOException("收藏夹 ID 无效")
   val url="https://api.bilibili.com/x/v3/fav/resource/list?media_id="+mediaId+"&pn="+page.coerceIn(1,100)+"&ps=20"
