@@ -38,7 +38,7 @@ class LocalMediaRepository(private val context:Context) {
     }
 
     private fun queryLegacyFiles():List<LocalResource> {
-        val root=File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),"BilibiliDownload")
+        val root=context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: return emptyList()
         if(!root.exists())return emptyList()
         return root.walkTopDown().filter{it.isFile}.map { file ->
             val mime=android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase())?:"application/octet-stream"
