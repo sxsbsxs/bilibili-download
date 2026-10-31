@@ -413,25 +413,11 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     fun searchContent(keyword: String, kind: String, page: Int, requestId: String) {
         io.execute {
             try {
-                // Always read the same restored session source used by accountStatus.
-                var cookie = currentSessionCookie()
-                // A stale SESSDATA must not poison public keyword search. Verify it first;
-                // if Bilibili rejects the session, clear it and continue as a guest.
-                if (!cookie.isNullOrBlank()) {
-                    try {
-                        val profile = repository.accountProfile(cookie!!)
-                        if (!profile.optBoolean("isLogin", false)) {
-                            clearSessionCookie()
-                            cookie = null
-                        }
-                    } catch (_: Exception) {
-                        // Keep the session for the actual search request; transient nav failures
-                        // should not silently log the user out.
-                    }
-                }
-                val data = repository.searchContent(keyword, kind, page, cookie)
+                // Public keyword search is always a guest request. Login is only used
+                // for account-only features and higher playback/download permissions.
+                val data = repository.searchContent(keyword, kind, page, null)
                 respond(requestId, JSONObject().put("ok", true).put("data", data).put("kind", kind)
-                    .put("loginUsed", !cookie.isNullOrBlank()))
+                    .put("loginUsed", false))
             } catch (e: Exception) {
                 val message = e.message ?: "搜索失败"
                 // Do not misreport every API rejection as a login problem.
