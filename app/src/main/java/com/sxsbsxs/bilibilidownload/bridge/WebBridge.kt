@@ -10,6 +10,8 @@ import com.sxsbsxs.bilibilidownload.core.repository.BangumiRepository
 import com.sxsbsxs.bilibilidownload.core.repository.BiliRepository
 import com.sxsbsxs.bilibilidownload.core.parser.BangumiIdParser
 import com.sxsbsxs.bilibilidownload.core.security.CookieSession
+import com.sxsbsxs.bilibilidownload.core.security.BiliQrLoginClient
+import com.sxsbsxs.bilibilidownload.core.utils.BiliExportFormatter
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
@@ -23,6 +25,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     private val downloads = AndroidDownloadService(activity.applicationContext)
     private val taskDownloads = DownloadTaskCoordinator(activity.applicationContext)
     private val session = CookieSession()
+    private val qrLogin = BiliQrLoginClient()
     private val videos = ConcurrentHashMap<String, com.sxsbsxs.bilibilidownload.core.model.VideoInfo>()
     private val bangumis = ConcurrentHashMap<String, BangumiInfo>()
     private val prefs = activity.getSharedPreferences("download_ids", Activity.MODE_PRIVATE)
@@ -195,12 +198,12 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     fun exportSubtitle(url: String, title: String, requestId: String) {
         io.execute {
             try {
-                if (!url.startsWith("https://")) throw IllegalArgumentException("字幕地址不安全")
-                val id = downloads.enqueue(url, title + "_subtitle", "application/json", "json")
-                rememberDownload(id)
-                respond(requestId, JSONObject().put("ok", true).put("id", id))
+                val raw = repository.fetchText(url, session.get())
+                val srt = BiliExportFormatter.subtitleSrt(raw)
+                val uri = downloads.saveText(srt, title + "_subtitle", "application/x-subrip", "srt")
+                respond(requestId, JSONObject().put("ok", true).put("uri", uri).put("format", "srt"))
             } catch (e: Exception) {
-                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "字幕下载失败"))
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "字幕导出失败"))
             }
         }
     }
@@ -209,11 +212,12 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     fun exportDanmaku(cid: Long, title: String, requestId: String) {
         io.execute {
             try {
-                val id = downloads.enqueue(repository.danmakuUrl(cid), title + "_danmaku", "application/xml", "xml")
-                rememberDownload(id)
-                respond(requestId, JSONObject().put("ok", true).put("id", id))
+                val raw = repository.fetchText(repository.danmakuUrl(cid), session.get())
+                val csv = BiliExportFormatter.danmakuCsv(raw)
+                val uri = downloads.saveText(csv, title + "_danmaku", "text/csv", "csv")
+                respond(requestId, JSONObject().put("ok", true).put("uri", uri).put("format", "csv"))
             } catch (e: Exception) {
-                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "弹幕下载失败"))
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "弹幕导出失败"))
             }
         }
     }
@@ -271,6 +275,57 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
         io.execute {
             val ok = if (id < 0L) taskDownloads.retry(id) else false
             respond(requestId, JSONObject().put("ok", ok).put("error", if (ok) "" else "该任务暂不支持应用内重试"))
+        }
+    }
+
+    @JavascriptInterface
+    fun createQrLogin(requestId: String) {
+        io.execute {
+            try {
+                val ticket = qrLogin.create()
+                respond(requestId, JSONObject().put("ok", true).put("key", ticket.key).put("image", ticket.imageDataUrl))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "生成登录二维码失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun pollQrLogin(key: String, requestId: String) {
+        io.execute {
+            try {
+                val result = qrLogin.poll(key)
+                if (result.state == "success") session.set(result.cookie)
+                respond(requestId, JSONObject().put("ok", true).put("state", result.state)
+                    .put("message", result.message).put("loggedIn", session.isLoggedIn))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "查询扫码状态失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun bulkTaskAction(idsJson: String, action: String, requestId: String) {
+        io.execute {
+            try {
+                val ids = JSONArray(idsJson)
+                var succeeded = 0
+                var skipped = 0
+                for (i in 0 until ids.length()) {
+                    val id = ids.optLong(i)
+                    val ok = when (action) {
+                        "pause" -> id < 0L && taskDownloads.pause(id)
+                        "resume" -> id < 0L && taskDownloads.resume(id)
+                        "retry" -> id < 0L && taskDownloads.retry(id)
+                        "remove" -> if (id < 0L) { taskDownloads.remove(id); true } else { downloads.remove(id); true }
+                        else -> false
+                    }
+                    if (ok) succeeded++ else skipped++
+                }
+                respond(requestId, JSONObject().put("ok", true).put("succeeded", succeeded).put("skipped", skipped))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "批量操作失败"))
+            }
         }
     }
 
