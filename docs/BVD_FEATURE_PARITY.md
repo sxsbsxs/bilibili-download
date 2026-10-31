@@ -42,17 +42,17 @@ Legend:
 
 ## 4. Stream formats and downloads
 
-- [~] Progressive durl stream lookup and single-URL download.
-- [ ] DASH video track and audio track parsing.
-- [ ] DASH separate-track downloads.
-- [ ] Audio/video muxing and post-processing.
-- [ ] Full quality/codec capability negotiation for DASH (4K/8K/HDR/Dolby/AV1 when actually returned and authorized).
-- [~] Android DownloadManager persistence and basic status query.
-- [ ] App-owned task states and lifecycle (pause/resume, retries, recovery, batch actions).
+- [x] Progressive durl stream lookup and app-owned single-stream download.
+- [~] DASH video track and audio track parsing via `fnval=4048`.
+- [~] DASH separate-track downloads with HTTP Range resume where the server supports it.
+- [~] Android MediaExtractor / MediaMuxer audio-video MP4 muxing; codec/container compatibility is device-dependent.
+- [~] Quality list and selected-quality requests; 4K/8K/HDR/Dolby/AV1 availability still depends on B站 API response, account rights, source encoding and device support.
+- [~] App-owned task lifecycle for video downloads: persisted task metadata, progress, pause, resume, retry, process recovery, and removal.
 - [ ] Batch download and quality-mismatch policy.
-- [ ] Download completion processing and media publication workflow.
+- [~] Completion publishes MP4 to Download/BilibiliDownload on Android 10+; older versions use app-specific Downloads storage.
+- [~] Subtitle and danmaku exports still use Android DownloadManager and do not yet share the app-owned pause/resume/retry task engine.
 
-Important limitation: current repository requests `fnval=0`, expects `durl`, and explicitly fails when the API returns DASH. The current implementation therefore does not deliver DASH/high-resolution DASH downloads.
+Important limitations: task URLs are encrypted with Android Keystore, but Cookie values are intentionally not persisted. A recovered task may need a fresh stream URL if its signed URL has expired or the source requires an authenticated Cookie. The current muxer relies on device MediaExtractor support and is not a substitute for BVD's broader FFmpeg pipeline.
 
 ## 5. Subtitles and danmaku
 
@@ -91,15 +91,15 @@ Important limitation: current repository requests `fnval=0`, expects `durl`, and
 
 - The active UI is local HTML/CSS/JS in WebView; Kotlin provides the native bridge.
 - The current account UI accepts manually pasted Cookie only. It is not QR login.
-- The current download engine delegates a single URL to Android DownloadManager. The app does not own a full resumable DASH/muxing pipeline.
+- Video downloads now use an app-owned task coordinator for progressive and DASH streams. It persists task state, encrypts saved stream URLs with Android Keystore, supports pause/resume/retry, and attempts to recover active tasks after process restart. DASH streams are muxed with Android MediaMuxer. Subtitle and danmaku exports still use Android DownloadManager.
 - Subtitle export currently keeps BCC JSON; danmaku export currently keeps XML. Neither matches BVD's SRT/CSV export.
 - Local resources page is a placeholder that describes the Download directory.
 - The current player, account content pages, search, media processing, and most settings are absent.
 
 ## Suggested implementation order
 
-1. Core playback stream pipeline: DASH parsing, independent video/audio download, merge, quality/codec negotiation.
-2. Real task engine: persistent task model, progress, pause/resume, retry, process recovery, batch actions.
+1. Improve the current DASH pipeline: codec compatibility, FFmpeg fallback, stream URL refresh, and real-device validation.
+2. Finish task engine parity: batch actions, foreground/background service integration, notifications, queue controls, and robust recovery.
 3. Bangumi EP/SS resolution and batch episode download.
 4. QR login with QR image, clickable confirmation URL, polling, and secure session handling.
 5. Correct SRT and CSV export.
