@@ -116,7 +116,13 @@ class DownloadTaskCoordinator(context: Context) {
     }
 
     fun close() {
-        tasks.values.forEach { it.call?.cancel() }
+        tasks.values.forEach { task ->
+            task.generation++
+            task.paused = true
+            if (task.status == 2 || task.status == 3) task.status = 1
+            task.call?.cancel()
+        }
+        persist()
         executor.shutdownNow()
     }
 
@@ -129,6 +135,8 @@ class DownloadTaskCoordinator(context: Context) {
     }
 
     private fun runTask(task: Task, generation: Long) {
+        task.status = 2
+        persist()
         val work = File(app.cacheDir, workName(task.id))
         try {
             work.mkdirs()
