@@ -87,10 +87,7 @@ extra.set(
 )
 
 dependencies {
-    file("libs").listFiles { file -> file.extension == "aar" }?.forEach { aarFile ->
-        implementation(files(aarFile))
-    }
-
+    implementation(libs.ffmpeg.kit.full)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity)
     implementation(libs.jetbrains.kotlin.reflect)
