@@ -17,6 +17,8 @@ import com.sxsbsxs.bilibilidownload.core.security.BiliQrLoginClient
 import com.sxsbsxs.bilibilidownload.core.security.CookieVault
 import com.sxsbsxs.bilibilidownload.core.utils.BiliExportFormatter
 import com.sxsbsxs.bilibilidownload.library.LocalMediaRepository
+import com.sxsbsxs.bilibilidownload.library.MediaProcessingRepository
+import com.sxsbsxs.bilibilidownload.PlayerActivity
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
@@ -29,6 +31,8 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     private val bangumiRepository = BangumiRepository()
     private val downloads = AndroidDownloadService(activity.applicationContext)
     private val localMedia = LocalMediaRepository(activity.applicationContext)
+    private val mediaProcessing = MediaProcessingRepository(activity.applicationContext)
+    private val appSettings = activity.getSharedPreferences("app_settings", Activity.MODE_PRIVATE)
     private val taskDownloads = DownloadTaskRuntime.get(activity.applicationContext)
     private val cookieVault = CookieVault(activity.applicationContext)
     private val session = CookieSession().apply { set(cookieVault.load()) }
@@ -414,6 +418,99 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
             } catch (e: Exception) {
                 respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "读取 UP 主投稿失败"))
             }
+        }
+    }
+
+
+    @JavascriptInterface
+    fun playLocalResource(uri: String, title: String, mime: String, requestId: String) {
+        try {
+            val intent = Intent(activity, PlayerActivity::class.java)
+                .putExtra(PlayerActivity.EXTRA_URI, uri)
+                .putExtra(PlayerActivity.EXTRA_TITLE, title)
+                .putExtra(PlayerActivity.EXTRA_AUDIO, mime.startsWith("audio/"))
+                .putExtra(PlayerActivity.EXTRA_PIP, appSettings.getBoolean("pip_enabled", true))
+            activity.runOnUiThread {
+                try {
+                    activity.startActivity(intent)
+                    respond(requestId, JSONObject().put("ok", true))
+                } catch (e: Exception) {
+                    respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "无法启动内置播放器"))
+                }
+            }
+        } catch (e: Exception) {
+            respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "无法启动内置播放器"))
+        }
+    }
+
+    @JavascriptInterface
+    fun inspectLocalResource(uri: String, requestId: String) {
+        io.execute {
+            try {
+                respond(requestId, JSONObject().put("ok", true).put("info", mediaProcessing.inspect(uri)))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "读取媒体信息失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun extractAudio(uri: String, title: String, requestId: String) {
+        io.execute {
+            try {
+                val output = mediaProcessing.extractAac(uri, title)
+                respond(requestId, JSONObject().put("ok", true).put("uri", output))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "提取音频失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun remuxMedia(uri: String, title: String, requestId: String) {
+        io.execute {
+            try {
+                val output = mediaProcessing.remuxMp4(uri, title)
+                respond(requestId, JSONObject().put("ok", true).put("uri", output))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "媒体重新封装失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun getAppSettings(requestId: String) {
+        val value = JSONObject()
+            .put("downloadFolder", appSettings.getString("download_folder", "BilibiliDownload"))
+            .put("filenameTemplate", appSettings.getString("filename_template", "{title}"))
+            .put("qualityPolicy", appSettings.getString("quality_policy", "highest"))
+            .put("keepSourceTracks", appSettings.getBoolean("keep_source_tracks", false))
+            .put("pipEnabled", appSettings.getBoolean("pip_enabled", true))
+        respond(requestId, JSONObject().put("ok", true).put("settings", value))
+    }
+
+    @JavascriptInterface
+    fun saveAppSettings(json: String, requestId: String) {
+        try {
+            val value = JSONObject(json)
+            val folder = value.optString("downloadFolder", "BilibiliDownload")
+                .replace(Regex("[^A-Za-z0-9 _-]"), "").trim().take(48).ifBlank { "BilibiliDownload" }
+            val template = value.optString("filenameTemplate", "{title}")
+                .replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().take(100).ifBlank { "{title}" }
+            val policy = value.optString("qualityPolicy", "highest").takeIf { it in setOf("highest", "1080p", "720p") } ?: "highest"
+            appSettings.edit()
+                .putString("download_folder", folder)
+                .putString("filename_template", template)
+                .putString("quality_policy", policy)
+                .putBoolean("keep_source_tracks", value.optBoolean("keepSourceTracks", false))
+                .putBoolean("pip_enabled", value.optBoolean("pipEnabled", true))
+                .apply()
+            respond(requestId, JSONObject().put("ok", true).put("settings", JSONObject()
+                .put("downloadFolder", folder).put("filenameTemplate", template).put("qualityPolicy", policy)
+                .put("keepSourceTracks", value.optBoolean("keepSourceTracks", false))
+                .put("pipEnabled", value.optBoolean("pipEnabled", true))))
+        } catch (e: Exception) {
+            respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "保存设置失败"))
         }
     }
 
