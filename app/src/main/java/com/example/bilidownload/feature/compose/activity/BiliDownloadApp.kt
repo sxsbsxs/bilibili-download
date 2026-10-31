@@ -22,7 +22,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.example.bilidownload.common.network.BiliApi
-import com.example.bilidownload.api.BiliLoginManager
+import com.example.bilidownload.common.network.BiliLoginManager
 import com.example.bilidownload.common.download.StreamDownloader
 import com.example.bilidownload.common.model.*
 import com.example.bilidownload.common.storage.CookieVault
