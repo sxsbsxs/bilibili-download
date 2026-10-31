@@ -27,6 +27,7 @@ import java.util.concurrent.Executors
 /** Asynchronous bridge. Network and download operations never run on the WebView thread. */
 class WebBridge(private val activity: Activity, private val webView: WebView) {
     private val io = Executors.newSingleThreadExecutor()
+    private val mediaIo = Executors.newSingleThreadExecutor()
     private val repository = BiliRepository()
     private val bangumiRepository = BangumiRepository()
     private val downloads = AndroidDownloadService(activity.applicationContext)
@@ -445,7 +446,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
 
     @JavascriptInterface
     fun inspectLocalResource(uri: String, requestId: String) {
-        io.execute {
+        mediaIo.execute {
             try {
                 respond(requestId, JSONObject().put("ok", true).put("info", mediaProcessing.inspect(uri)))
             } catch (e: Exception) {
@@ -456,7 +457,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
 
     @JavascriptInterface
     fun extractAudio(uri: String, title: String, requestId: String) {
-        io.execute {
+        mediaIo.execute {
             try {
                 val output = mediaProcessing.extractAac(uri, title)
                 respond(requestId, JSONObject().put("ok", true).put("uri", output))
@@ -468,7 +469,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
 
     @JavascriptInterface
     fun ffmpegExtractAudio(uri: String, title: String, requestId: String) {
-        io.execute {
+        mediaIo.execute {
             try {
                 val output = mediaProcessing.extractAudioFfmpeg(uri, title)
                 respond(requestId, JSONObject().put("ok", true).put("uri", output))
@@ -480,7 +481,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
 
     @JavascriptInterface
     fun ffmpegConvertMp4(uri: String, title: String, requestId: String) {
-        io.execute {
+        mediaIo.execute {
             try {
                 val output = mediaProcessing.convertToMp4(uri, title)
                 respond(requestId, JSONObject().put("ok", true).put("uri", output))
@@ -492,7 +493,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
 
     @JavascriptInterface
     fun remuxMedia(uri: String, title: String, requestId: String) {
-        io.execute {
+        mediaIo.execute {
             try {
                 val output = mediaProcessing.remuxMp4(uri, title)
                 respond(requestId, JSONObject().put("ok", true).put("uri", output))
@@ -608,6 +609,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
 
     fun close() {
         io.shutdownNow()
+        mediaIo.shutdownNow()
         videos.clear()
         bangumis.clear()
         session.clear()
