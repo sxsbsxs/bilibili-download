@@ -4,7 +4,7 @@ import android.app.Activity
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import com.sxsbsxs.bilibilidownload.core.download.AndroidDownloadService
-import com.sxsbsxs.bilibilidownload.core.download.DashDownloadCoordinator
+import com.sxsbsxs.bilibilidownload.core.download.DownloadTaskCoordinator
 import com.sxsbsxs.bilibilidownload.core.repository.BiliRepository
 import com.sxsbsxs.bilibilidownload.core.security.CookieSession
 import org.json.JSONArray
@@ -17,7 +17,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     private val io = Executors.newSingleThreadExecutor()
     private val repository = BiliRepository()
     private val downloads = AndroidDownloadService(activity.applicationContext)
-    private val dashDownloads = DashDownloadCoordinator(activity.applicationContext)
+    private val taskDownloads = DownloadTaskCoordinator(activity.applicationContext)
     private val session = CookieSession()
     private val videos = ConcurrentHashMap<String, com.sxsbsxs.bilibilidownload.core.model.VideoInfo>()
     private val prefs = activity.getSharedPreferences("download_ids", Activity.MODE_PRIVATE)
@@ -61,14 +61,9 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
                 val video = videos[token] ?: throw IllegalStateException("视频信息已过期，请重新解析")
                 val page = video.pages.firstOrNull { it.cid == cid }
                 val stream = repository.dashStreamAtQuality(video, quality, page, session.get())
-                if (stream.isDash) {
-                    val id = dashDownloads.enqueue(stream, title, session.get())
-                    respond(requestId, JSONObject().put("ok", true).put("id", id).put("quality", stream.quality).put("description", stream.description).put("mode", "dash"))
-                } else {
-                    val id = downloads.enqueue(stream.videoUrl, title)
-                    rememberDownload(id)
-                    respond(requestId, JSONObject().put("ok", true).put("id", id).put("quality", stream.quality).put("description", stream.description).put("mode", "progressive"))
-                }
+                val id = taskDownloads.enqueue(stream, title, session.get())
+                respond(requestId, JSONObject().put("ok", true).put("id", id).put("quality", stream.quality)
+                    .put("description", stream.description).put("mode", if (stream.isDash) "dash" else "progressive"))
             } catch (e: Exception) {
                 respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "无法创建下载任务"))
             }
@@ -151,7 +146,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
             try {
                 val ids = prefs.getStringSet("ids", emptySet()).orEmpty().mapNotNull { it.toLongOrNull() }
                 val rows = JSONArray().apply {
-                    (downloads.query(ids) + dashDownloads.query()).forEach { row ->
+                    (downloads.query(ids) + taskDownloads.query()).forEach { row ->
                         put(JSONObject().put("id", row.id).put("title", row.title).put("status", row.status)
                             .put("downloadedBytes", row.downloadedBytes).put("totalBytes", row.totalBytes).put("error", row.error))
                     }
@@ -166,7 +161,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     @JavascriptInterface
     fun cancelDownload(id: Long, requestId: String) {
         io.execute {
-            if (id < 0L) dashDownloads.remove(id) else downloads.remove(id)
+            if (id < 0L) taskDownloads.remove(id) else downloads.remove(id)
             respond(requestId, JSONObject().put("ok", true))
         }
     }
@@ -174,7 +169,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     @JavascriptInterface
     fun pauseDownload(id: Long, requestId: String) {
         io.execute {
-            val ok = if (id < 0L) dashDownloads.pause(id) else false
+            val ok = if (id < 0L) taskDownloads.pause(id) else false
             respond(requestId, JSONObject().put("ok", ok).put("error", if (ok) "" else "该任务暂不支持应用内暂停"))
         }
     }
@@ -182,7 +177,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     @JavascriptInterface
     fun resumeDownload(id: Long, requestId: String) {
         io.execute {
-            val ok = if (id < 0L) dashDownloads.resume(id) else false
+            val ok = if (id < 0L) taskDownloads.resume(id) else false
             respond(requestId, JSONObject().put("ok", ok).put("error", if (ok) "" else "该任务暂不支持应用内恢复"))
         }
     }
@@ -190,7 +185,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     @JavascriptInterface
     fun retryDownload(id: Long, requestId: String) {
         io.execute {
-            val ok = if (id < 0L) dashDownloads.retry(id) else false
+            val ok = if (id < 0L) taskDownloads.retry(id) else false
             respond(requestId, JSONObject().put("ok", ok).put("error", if (ok) "" else "该任务暂不支持应用内重试"))
         }
     }
@@ -218,7 +213,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
 
     fun close() {
         io.shutdownNow()
-        dashDownloads.close()
+        taskDownloads.close()
         videos.clear()
         session.clear()
     }

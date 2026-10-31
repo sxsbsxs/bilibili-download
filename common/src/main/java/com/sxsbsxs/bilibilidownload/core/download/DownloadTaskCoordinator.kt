@@ -28,7 +28,7 @@ import org.json.JSONObject
  * App-owned DASH task queue. Task metadata and partial files survive process death.
  * Cookies are deliberately not persisted; only signed stream URLs and task metadata are stored.
  */
-class DashDownloadCoordinator(context: Context) {
+class DownloadTaskCoordinator(context: Context) {
     private val app = context.applicationContext
     private val prefs = app.getSharedPreferences("dash_download_tasks_v2", Context.MODE_PRIVATE)
     private val client = OkHttpClient.Builder().followRedirects(true).build()
@@ -40,7 +40,7 @@ class DashDownloadCoordinator(context: Context) {
         val id: Long,
         val title: String,
         val videoUrl: String,
-        val audioUrl: String,
+        val audioUrl: String?,
         @Volatile var status: Int = 1,
         @Volatile var downloaded: Long = 0,
         @Volatile var total: Long = 0,
@@ -64,9 +64,9 @@ class DashDownloadCoordinator(context: Context) {
 
     @Synchronized
     fun enqueue(stream: DashStreamInfo, title: String, cookie: String?): Long {
-        require(stream.isDash && !stream.audioUrl.isNullOrBlank()) { "DASH 音频流缺失" }
+        require(stream.videoUrl.isNotBlank()) { "视频流地址为空" }
         val id = -(System.currentTimeMillis() * 1000L + sequence.incrementAndGet())
-        val task = Task(id, safeName(title), stream.videoUrl, stream.audioUrl!!, cookie = cookie)
+        val task = Task(id, safeName(title), stream.videoUrl, stream.audioUrl, cookie = cookie)
         tasks[id] = task
         persist()
         schedule(task)
@@ -136,12 +136,16 @@ class DashDownloadCoordinator(context: Context) {
             val audio = File(work, "audio.m4s")
             download(task.videoUrl, video, task, generation)
             checkActive(task, generation)
-            download(task.audioUrl, audio, task, generation)
-            checkActive(task, generation)
-            task.status = 3
-            persist()
             val output = File(work, "merged.mp4")
-            mux(video, audio, output)
+            if (!task.audioUrl.isNullOrBlank()) {
+                download(task.audioUrl!!, audio, task, generation)
+                checkActive(task, generation)
+                task.status = 3
+                persist()
+                mux(video, audio, output)
+            } else {
+                video.copyTo(output, overwrite = true)
+            }
             checkActive(task, generation)
             publish(output, task.title)
             task.downloaded = output.length()
@@ -324,8 +328,8 @@ class DashDownloadCoordinator(context: Context) {
             val row = rows.optJSONObject(i) ?: continue
             val id = row.optLong("id")
             val video = row.optString("videoUrl")
-            val audio = row.optString("audioUrl")
-            if (id == 0L || video.isBlank() || audio.isBlank()) continue
+            val audio = row.optString("audioUrl").takeIf { it.isNotBlank() && it != "null" }
+            if (id == 0L || video.isBlank()) continue
             val task = Task(id, row.optString("title", "bilibili_video"), video, audio,
                 row.optInt("status", 1), row.optLong("downloaded"), row.optLong("total"),
                 row.optString("error"))
