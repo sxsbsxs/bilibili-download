@@ -23,6 +23,5 @@ dependencies {
     implementation(project(":common"))
     implementation(project(":service:download"))
     implementation(project(":notification"))
-    implementation(libs.androidx.core.ktx)
     implementation(libs.okhttp)
 }
