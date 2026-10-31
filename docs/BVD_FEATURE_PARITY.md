@@ -37,7 +37,6 @@ Legend:
 - [~] Official passport QR polling handles waiting, scanned/awaiting confirmation, expired and successful states.
 - [~] Successful QR login extracts the Bilibili session Cookie and stores it with AES-GCM under an Android Keystore key; logout clears the encrypted credential.
 - [~] Account page queries the authenticated navigation/profile endpoint and displays the account name / UID.
-- [ ] Favorites, watch history, watch-later, recent likes, personal uploads.
 - [ ] Password login.
 - [ ] Favorites, watch history, watch-later, recent likes, personal uploads.
 
