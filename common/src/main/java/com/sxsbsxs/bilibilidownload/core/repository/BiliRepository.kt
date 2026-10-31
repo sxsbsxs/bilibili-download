@@ -159,7 +159,7 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
   }
  }
 
- private fun signedGet(endpoint:String,parameters:Map<String,String>,cookie:String?):org.json.JSONObject {
+ private fun signedGet(endpoint:String,parameters:Map<String,String>,cookie:String?,retryCookieBlock:Boolean=true):org.json.JSONObject {
   http.ensureWebCookies(cookie)
   val nav=http.getJson("https://api.bilibili.com/x/web-interface/nav",cookie)
   if(nav.optInt("code",-1)!=0)throw IOException(nav.optString("message","读取 WBI 签名参数失败"))
@@ -176,7 +176,12 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
   val query=sorted.entries.joinToString("&"){entry->
    entry.key+"="+URLEncoder.encode(entry.value.replace(Regex("[!'()*]"),""),"UTF-8")
   }
-  return http.getJson(endpoint+"?"+query+"&w_rid="+md5(query+mixinKey),cookie)
+  val response=http.getJson(endpoint+"?"+query+"&w_rid="+md5(query+mixinKey),cookie)
+  if(response.optInt("code",-1)==-412 && retryCookieBlock) {
+   http.ensureWebCookies(cookie,force=true)
+   return signedGet(endpoint,parameters,cookie,retryCookieBlock=false)
+  }
+  return response
  }
 
  private fun normalizeImageUrl(value:String):String = when {
