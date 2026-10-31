@@ -76,9 +76,9 @@ Important limitations: task URLs are encrypted with Android Keystore, but Cookie
 
 ## 7. Media processing
 
-- [~] Lossless AAC audio-track extraction to M4A when the source already contains AAC; no re-encoding.
-- [ ] FFmpeg-based muxing (the current implementation uses Android MediaExtractor / MediaMuxer instead).
-- [~] MP4 remux for extractor-supported audio/video tracks; FLV/MKV/WMV conversion and transcoding are not implemented.
+- [~] Native lossless AAC passthrough plus FFmpeg AAC re-encoding/extraction to M4A.
+- [~] FFmpeg-based audio extraction and MP4 conversion are available; DASH stream muxing still uses Android MediaExtractor / MediaMuxer.
+- [~] Native MP4 remux plus FFmpeg conversion to MP4 using MPEG-4 video and AAC audio; codec/profile selection and GPU-accelerated transcoding are not exposed.
 - [~] Media metadata inspection (duration, dimensions, bitrate, MIME and rotation) through MediaMetadataRetriever.
 - [ ] Configurable automatic post-download processing.
 
@@ -101,7 +101,7 @@ Important limitations: task URLs are encrypted with Android Keystore, but Cookie
 - Subtitle JSON is converted to SRT and danmaku XML to CSV; the exported text files are saved locally rather than being faked as DownloadManager URL tasks.
 - The local resources page indexes the configured Download subfolder and supports native Media3 playback, metadata inspection, AAC passthrough extraction and MP4 remux; format support remains device-dependent.
 - Search and account-content pages are wired to Bilibili endpoints but require real-account and regional verification.
-- FFmpeg transcoding, broad container conversion, playlists, audio visualization, arbitrary SAF destination picking and automatic post-processing remain absent.
+- FFmpeg audio extraction and MP4 transcoding are implemented; advanced codec presets, GPU acceleration, playlist playback, audio visualization, arbitrary SAF destination picking and automatic post-processing remain absent.
 
 ## Suggested implementation order
 
@@ -150,9 +150,9 @@ Safety rule: when a refreshed signed URL has no comparable ETag or Last-Modified
 ## 12. Media processing (2026-10-31)
 
 - [~] Read duration, dimensions, bitrate, MIME type and rotation with MediaMetadataRetriever.
-- [~] Extract an existing AAC audio track to M4A without re-encoding; other audio codecs are rejected with an explanatory message.
+- [~] Extract an existing AAC audio track losslessly with Android APIs, or extract/transcode audio to AAC M4A with FFmpeg.
 - [~] Remux supported audio/video tracks into MP4 using MediaExtractor / MediaMuxer.
-- [ ] FFmpeg integration, transcoding, FLV/MKV/WMV conversion, AAC encoding from non-AAC sources and automatic post-download processing.
+- [~] FFmpegKit-maintained LGPL runtime integrated for audio extraction and MP4 conversion (MPEG-4 video + AAC audio). Source formats depend on bundled FFmpeg decoders; advanced codec presets, GPU acceleration and automatic post-download processing remain absent.
 
 ## 13. Settings (2026-10-31)
 
@@ -160,3 +160,10 @@ Safety rule: when a refreshed signed URL has no comparable ETag or Last-Modified
 - [~] Quality preference selects only among qualities returned by Bilibili; it cannot grant VIP or restricted qualities.
 - [~] Folder setting is a safe subfolder name beneath Download, not an arbitrary filesystem/SAF directory picker.
 - [~] Kept intermediate DASH tracks remain in app cache, not exposed as public files.
+
+
+## FFmpeg runtime and compatibility
+
+- [x] Uses dev.ffmpegkit-maintained:ffmpeg-kit-full:8.1.9 (LGPL-3.0, non-GPL artifact).
+- [~] Minimum Android version raised to API 24; published native ABIs are arm64-v8a and x86_64.
+- [ ] Real-device tests for large-file memory/storage pressure, codec coverage and cancellation/progress reporting.
