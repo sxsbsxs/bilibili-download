@@ -40,10 +40,9 @@ class MediaProcessingRepository(private val context: Context) {
         val input = Uri.parse(uriText)
         val output = File(context.cacheDir, "audio_extract_${System.nanoTime()}.m4a")
         var muxer: MediaMuxer? = null
+        val pfd = context.contentResolver.openFileDescriptor(input, "r") ?: throw IOException("无法读取源媒体")
         try {
-            context.contentResolver.openFileDescriptor(input, "r")?.use { pfd ->
-                extractor.setDataSource(pfd.fileDescriptor)
-            } ?: throw IOException("无法读取源媒体")
+            extractor.setDataSource(pfd.fileDescriptor)
             val track = (0 until extractor.trackCount).firstOrNull {
                 extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME).orEmpty() == "audio/mp4a-latm"
             } ?: throw IOException("未找到 AAC 音轨；当前版本仅支持无损提取 AAC，不会进行重新编码")
@@ -58,6 +57,7 @@ class MediaProcessingRepository(private val context: Context) {
             throw IOException("提取 AAC 音频失败：" + (e.message ?: "不支持的媒体格式"), e)
         } finally {
             try { muxer?.release() } catch (_: Exception) {}
+            try { pfd.close() } catch (_: Exception) {}
             extractor.release()
             output.delete()
         }
@@ -67,10 +67,9 @@ class MediaProcessingRepository(private val context: Context) {
         val extractor = MediaExtractor()
         val output = File(context.cacheDir, "remux_${System.nanoTime()}.mp4")
         var muxer: MediaMuxer? = null
+        val pfd = context.contentResolver.openFileDescriptor(Uri.parse(uriText), "r") ?: throw IOException("无法读取源媒体")
         try {
-            context.contentResolver.openFileDescriptor(Uri.parse(uriText), "r")?.use { pfd ->
-                extractor.setDataSource(pfd.fileDescriptor)
-            } ?: throw IOException("无法读取源媒体")
+            extractor.setDataSource(pfd.fileDescriptor)
             val selected = (0 until extractor.trackCount).filter {
                 val mime = extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME).orEmpty()
                 mime.startsWith("video/") || mime.startsWith("audio/")
