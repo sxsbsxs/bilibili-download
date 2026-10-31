@@ -18,7 +18,7 @@ class DownloadForegroundService : Service() {
         override fun run() {
             val active = DownloadTaskRuntime.get(applicationContext).query().count { it.status == 1 || it.status == 2 || it.status == 3 }
             if (active == 0) {
-                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopForeground(true)
                 stopSelf()
                 return
             }
