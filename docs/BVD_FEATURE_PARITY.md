@@ -16,10 +16,10 @@ Legend:
 - [~] BV / AV / video URL parsing: parser and video detail API exist.
 - [~] EP / SS bangumi parsing: season/episode API lookup and episode list are connected; share-link variants still need real-world coverage.
 - [ ] Bilibili share-link short URL resolution.
-- [ ] Global video search.
-- [ ] Bangumi / film search.
-- [ ] UP主 manuscript search.
-- [ ] Search history.
+- [~] Global video search through the web search API, with pagination and result-to-video parsing.
+- [~] Bangumi / film search through the media_bangumi search category; season results open the season parser.
+- [~] UP 主 search and public uploader submission list lookup.
+- [x] Search history stored locally in WebView storage; it is not uploaded.
 - [ ] Android share-sheet intent intake.
 
 ## 2. Video detail and parts
@@ -38,7 +38,9 @@ Legend:
 - [~] Successful QR login extracts the Bilibili session Cookie and stores it with AES-GCM under an Android Keystore key; logout clears the encrypted credential.
 - [~] Account page queries the authenticated navigation/profile endpoint and displays the account name / UID.
 - [ ] Password login.
-- [ ] Favorites, watch history, watch-later, recent likes, personal uploads.
+- [~] Created favorite-folder listing and folder resource listing.
+- [~] Watch history, watch-later, recent likes and own uploads are wired to account endpoints; pagination and real-account API validation remain.
+- [~] UP search results can load a public user's recent submissions.
 
 ## 4. Stream formats and downloads
 
@@ -64,7 +66,9 @@ Important limitations: task URLs are encrypted with Android Keystore, but Cookie
 
 ## 6. Local resources and players
 
-- [ ] Local media indexing, metadata, categories, details, export and deletion UI.
+- [~] Local MediaStore scan for the app's Download/BilibiliDownload folder; legacy app-specific Downloads scan is also implemented.
+- [~] File category filters, name/size/date metadata, open with external app, share/export via Android chooser, and delete UI.
+- [ ] Rich media details, in-app video/audio playback, playlist and metadata editor.
 - [ ] In-app video player, playback controls, speed and picture-in-picture.
 - [ ] In-app audio player and background playback.
 - [ ] Audio spectrum / spectrogram visualization.
@@ -95,15 +99,16 @@ Important limitations: task URLs are encrypted with Android Keystore, but Cookie
 - The account UI supports Bilibili APP QR scanning and confirmation, manual Cookie fallback, encrypted Cookie persistence with Android Keystore, account name / UID lookup and logout. QR login still needs real-account device verification.
 - Video downloads use a process-wide app-owned coordinator shared by the WebView bridge and a foreground data-sync service. It persists task state, encrypts stream URLs with Android Keystore, supports pause/resume/retry, status filtering and batch operations, and attempts to recover active tasks after process restart. DASH streams are muxed with Android MediaMuxer.
 - Subtitle JSON is converted to SRT and danmaku XML to CSV; the exported text files are saved locally rather than being faked as DownloadManager URL tasks.
-- Local resources page is a placeholder that describes the Download directory.
-- The current player, account content pages, search, media processing, and most settings are absent.
+- The local resources page now indexes the app's Download/BilibiliDownload folder; in-app playback and rich metadata remain absent.
+- Search and account-content pages are wired to Bilibili endpoints but require real-account and regional verification.
+- Media processing and most advanced settings are absent.
 
 ## Suggested implementation order
 
 1. Improve the DASH pipeline: codec compatibility, optional FFmpeg fallback, and real-device validation.
 2. Expand EP/SS coverage, improve batch quality policy, and test real season/episode responses.
-3. Add account content and search.
-4. Build the local resource library and video/audio players.
+3. Validate search and account-content APIs with real accounts; add short-link and Android share-sheet intake.
+4. Add in-app video/audio players and richer local metadata.
 5. Add media conversion and remaining settings.
 
 Do not mark an item complete until its Kotlin implementation, UI connection, and a meaningful test/build path exist.
