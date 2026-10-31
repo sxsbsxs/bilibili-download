@@ -1,41 +1,23 @@
 # Bilibili Download
 
-Kotlin + Jetpack Compose Android downloader. This is a clean-room rebuild. BVD is an architectural reference only; no BVD business implementation or old BiliDownload-KT business source is copied.
+本项目正在以 [KafuuNeko/BiliDownload](https://github.com/KafuuNeko/BiliDownload) 为基础进行原生 Android 源码迁移和修改。
 
-## BVD-inspired project layout
+上游项目采用 GNU GPL v3.0。本仓库保留上游版权与许可要求；迁移后的整体衍生作品按 GPL-3.0 发布。上游原作者及项目的版权归其各自权利人所有。
 
-```
-app/                         Android entry point
-common/
-  core/
-    model/                   Video, page, stream and task models
-    parser/                  BV / AV / URL identifier parsing
-    network/                 OkHttp transport and request headers
-    repository/              Video metadata, pages and stream lookup
-    download/                Android DownloadManager adapter
-    security/                In-memory cookie session boundary
-feature/
-  home/                      Compose parsing, page/quality selection and detail UI
-service/
-  download/                  Download orchestration boundary
-notification/                Download notification channel
-```
+## 本分支迁移目标
 
-## Current capabilities
-- Parse BV IDs, AV IDs and Bilibili video URLs.
-- Fetch video metadata and multi-part (P) lists.
-- Read the quality options returned by Bilibili and request a selected quality.
-- Queue supported progressive streams through Android DownloadManager.
-- Refresh and remove current-session download tasks.
-- Keep cookie handling behind an in-memory session boundary; raw cookies are not persisted.
+- 以 BVD 的 Android 原生 Kotlin 项目结构、界面和业务实现为基础，而不是 WebView 网页壳。
+- 保留 BVD 的视频搜索、解析、下载、资源管理等实现，并在迁移完成后逐项适配。
+- 界面中文化，底部主导航按需求保留「首页」「我的」。
+- 游客可搜索公开内容；账号登录用于需要账号权限的功能和更高清晰度。
+- 所有改动均在独立分支进行，尚未合并到 main。
 
-## Limitations / next work
-- DASH audio/video streams are detected but not muxed yet; a proper FFmpeg/Media3 mux pipeline is next.
-- Download task persistence/history and background orchestration need expansion.
-- Official Bilibili App authorization handoff and callback are not connected yet.
-- Collections, bangumi, subtitles, danmaku, GIF and batch download remain future features.
+## 上游来源
 
-Quality availability depends on the current visitor/account. No DRM, paywall, region or account-entitlement bypass is implemented.
+- 项目：[KafuuNeko/BiliDownload](https://github.com/KafuuNeko/BiliDownload)
+- 上游许可证：GNU General Public License v3.0
+- 本项目的修改与迁移说明将在后续提交中持续更新。
 
-## Build
-GitHub Actions uses JDK 17, Gradle 8.9, AGP 8.7.3, Kotlin 2.0.21 and compileSdk 35.
+## 当前状态
+
+源码迁移进行中。当前分支尚不能视为完整移植版本；功能和构建状态以实际提交及 GitHub Actions 结果为准。
