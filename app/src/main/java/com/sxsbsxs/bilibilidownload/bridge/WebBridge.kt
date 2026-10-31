@@ -2,6 +2,7 @@ package com.sxsbsxs.bilibilidownload.bridge
 
 import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -301,10 +302,22 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
         io.execute {
             try {
                 val ticket = qrLogin.create()
-                respond(requestId, JSONObject().put("ok", true).put("key", ticket.key).put("image", ticket.imageDataUrl))
+                respond(requestId, JSONObject().put("ok", true).put("key", ticket.key).put("image", ticket.imageDataUrl).put("url", ticket.url))
             } catch (e: Exception) {
                 respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "生成登录二维码失败"))
             }
+        }
+    }
+
+    @JavascriptInterface
+    fun openBiliLogin(url: String) {
+        try {
+            val uri = Uri.parse(url)
+            if (uri.scheme != "https" || uri.host != "passport.bilibili.com") return
+            val intent = Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            activity.startActivity(intent)
+        } catch (_: Exception) {
+            // No installed handler: leave the QR login available as a fallback.
         }
     }
 
