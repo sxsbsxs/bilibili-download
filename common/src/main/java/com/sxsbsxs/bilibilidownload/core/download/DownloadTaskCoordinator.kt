@@ -101,6 +101,11 @@ class DownloadTaskCoordinator(context: Context) {
         return id
     }
 
+    @Synchronized
+    fun updateSessionCookie(cookie: String?) {
+        tasks.values.forEach { it.cookie = cookie }
+    }
+
     fun query(): List<DownloadRecord> = tasks.values.sortedByDescending { it.id }.map {
         DownloadRecord(it.id, it.title, it.status, it.downloaded, it.total, it.error)
     }
