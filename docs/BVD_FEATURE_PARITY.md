@@ -68,30 +68,30 @@ Important limitations: task URLs are encrypted with Android Keystore, but Cookie
 
 - [~] Local MediaStore scan for the app's Download/BilibiliDownload folder; legacy app-specific Downloads scan is also implemented.
 - [~] File category filters, name/size/date metadata, open with external app, share/export via Android chooser, and delete UI.
-- [ ] Rich media details, in-app video/audio playback, playlist and metadata editor.
-- [ ] In-app video player, playback controls, speed and picture-in-picture.
-- [ ] In-app audio player and background playback.
+- [~] Rich media metadata inspection and native in-app video/audio playback; playlist and metadata editor remain absent.
+- [~] Media3 in-app video player with seek controls, speed selection and optional picture-in-picture; requires real-device validation.
+- [~] Media3 audio playback through a MediaSessionService; background playback depends on Android notification/foreground-service policy and needs device validation.
 - [ ] Audio spectrum / spectrogram visualization.
-- [ ] Open media with external player.
+- [x] Open media with external player through Android intent chooser.
 
 ## 7. Media processing
 
-- [ ] AAC audio extraction.
-- [ ] FFmpeg-based muxing.
-- [ ] FLV / MP4 / MKV / WMV remux or conversion.
-- [ ] Media metadata inspection.
+- [~] Lossless AAC audio-track extraction to M4A when the source already contains AAC; no re-encoding.
+- [ ] FFmpeg-based muxing (the current implementation uses Android MediaExtractor / MediaMuxer instead).
+- [~] MP4 remux for extractor-supported audio/video tracks; FLV/MKV/WMV conversion and transcoding are not implemented.
+- [~] Media metadata inspection (duration, dimensions, bitrate, MIME and rotation) through MediaMetadataRetriever.
 - [ ] Configurable automatic post-download processing.
 
 ## 8. Settings
 
 - [~] Light/dark theme selection.
-- [ ] Download directory selection.
+- [~] Configurable Download subfolder (folder name under the public Download directory; arbitrary SAF directory picking is not implemented).
 - [ ] Download source and custom host.
-- [ ] Batch quality mismatch policy.
-- [ ] Delete source tracks after merge.
+- [~] Default quality preference: highest available, prefer 1080p or prefer 720p; it does not override Bilibili permissions.
+- [~] Keep or remove intermediate DASH tracks after merge; retained tracks stay in app cache.
 - [ ] Auto audio remux.
-- [ ] Picture-in-picture preference.
-- [ ] Resource and export filename templates.
+- [x] Picture-in-picture enable/disable preference.
+- [~] Download filename template supports {title}, {bvid}, and {quality}; export filename templates remain basic.
 
 ## Current implementation facts
 
@@ -99,9 +99,9 @@ Important limitations: task URLs are encrypted with Android Keystore, but Cookie
 - The account UI supports Bilibili APP QR scanning and confirmation, manual Cookie fallback, encrypted Cookie persistence with Android Keystore, account name / UID lookup and logout. QR login still needs real-account device verification.
 - Video downloads use a process-wide app-owned coordinator shared by the WebView bridge and a foreground data-sync service. It persists task state, encrypts stream URLs with Android Keystore, supports pause/resume/retry, status filtering and batch operations, and attempts to recover active tasks after process restart. DASH streams are muxed with Android MediaMuxer.
 - Subtitle JSON is converted to SRT and danmaku XML to CSV; the exported text files are saved locally rather than being faked as DownloadManager URL tasks.
-- The local resources page now indexes the app's Download/BilibiliDownload folder; in-app playback and rich metadata remain absent.
+- The local resources page indexes the configured Download subfolder and supports native Media3 playback, metadata inspection, AAC passthrough extraction and MP4 remux; format support remains device-dependent.
 - Search and account-content pages are wired to Bilibili endpoints but require real-account and regional verification.
-- Media processing and most advanced settings are absent.
+- FFmpeg transcoding, broad container conversion, playlists, audio visualization, arbitrary SAF destination picking and automatic post-processing remain absent.
 
 ## Suggested implementation order
 
@@ -138,3 +138,25 @@ The batch UI defaults each episode to "automatic highest available" and lets the
 - [ ] Persist a secure authenticated session so a post-restart refresh can recover streams that require login.
 
 Safety rule: when a refreshed signed URL has no comparable ETag or Last-Modified validator, existing partial bytes for that track are discarded before downloading from byte zero. The app never assumes two different signed URLs point to identical byte streams. No user-owned backend server is required; requests go directly from the Android app to Bilibili's media CDN.
+
+
+## 11. Native players (2026-10-31)
+
+- [~] Media3 video player with seek controls, playback speed presets (1.0x–2.0x), and optional Android picture-in-picture.
+- [~] Audio playback is hosted by a MediaSessionService so playback can continue after the player Activity is closed; device/notification-policy validation remains.
+- [x] Local resource cards route video and audio files into the built-in player while retaining external-open support.
+- [ ] Playlist, subtitle selection, audio spectrum, and advanced decoder selection.
+
+## 12. Media processing (2026-10-31)
+
+- [~] Read duration, dimensions, bitrate, MIME type and rotation with MediaMetadataRetriever.
+- [~] Extract an existing AAC audio track to M4A without re-encoding; other audio codecs are rejected with an explanatory message.
+- [~] Remux supported audio/video tracks into MP4 using MediaExtractor / MediaMuxer.
+- [ ] FFmpeg integration, transcoding, FLV/MKV/WMV conversion, AAC encoding from non-AAC sources and automatic post-download processing.
+
+## 13. Settings (2026-10-31)
+
+- [x] Persist download subfolder name, output filename template, quality preference, keep-intermediate-streams option and picture-in-picture preference.
+- [~] Quality preference selects only among qualities returned by Bilibili; it cannot grant VIP or restricted qualities.
+- [~] Folder setting is a safe subfolder name beneath Download, not an arbitrary filesystem/SAF directory picker.
+- [~] Kept intermediate DASH tracks remain in app cache, not exposed as public files.
