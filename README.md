@@ -22,6 +22,9 @@ An independent Android Bilibili downloader. The Android host and download engine
 - Run app-owned downloads through a foreground data-sync service with an ongoing notification; task UI supports status filters and batch pause / resume / remove.
 - Sign in by generating a Bilibili QR code locally and polling the official passport QR-login endpoint. Scan with the Bilibili APP and confirm in the APP.
 - Encrypt the login Cookie with AES-GCM using an Android Keystore key. Logout clears the stored credential; task URLs and task metadata use separate encrypted storage.
+- Search Bilibili videos, bangumi/media and UP accounts with pagination; local search history is stored on-device. UP search results can load public submission lists.
+- Account center: created favorite folders and their resources, watch history, watch-later, recent likes and own submissions (login required; API coverage still needs real-account validation).
+- Local resource library: scan the app's `Download/BilibiliDownload` folder, filter videos/audio/subtitles/data, open with an external app, share/export through Android's chooser, and delete files.
 - Convert Bilibili subtitle JSON to SRT and danmaku XML to CSV, then save the files to `Download/BilibiliDownload` on Android 10+.
 - Light / dark WebView UI.
 
