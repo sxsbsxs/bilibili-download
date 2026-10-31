@@ -13,12 +13,15 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
   if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","视频解析失败"))
   val d=root.getJSONObject("data")
   val pages=buildList { val a=d.optJSONArray("pages");if(a!=null)for(i in 0 until a.length()){val x=a.optJSONObject(i)?:continue;add(VideoPage(x.optLong("cid"),x.optInt("page",i+1),x.optString("part"),x.optInt("duration")))} }
-  return VideoInfo(d.optLong("aid"),d.optString("bvid"),d.optLong("cid"),d.optString("title"),d.optString("desc"),d.optInt("duration"),d.optJSONObject("owner")?.optString("name").orEmpty(),d.optString("pic"),pages)
+  return VideoInfo(d.optLong("aid"),d.optString("bvid"),d.optLong("cid"),d.optString("title"),d.optString("desc"),d.optInt("duration"),d.optJSONObject("owner")?.optString("name").orEmpty(),normalizeImageUrl(d.optString("pic")),pages)
  }
 
  fun dashStreams(v:VideoInfo,page:VideoPage?=null,cookie:String?=null):Pair<List<StreamOption>,DashStreamInfo> {
   val cid=page?.cid?:v.cid
-  val root=http.getJson("https://api.bilibili.com/x/player/playurl?bvid="+enc(v.bvid)+"&cid="+cid+"&qn=127&fnval=4048&fourk=1",cookie)
+  val root=signedGet("https://api.bilibili.com/x/player/wbi/playurl", mapOf(
+   "bvid" to v.bvid, "cid" to cid.toString(), "qn" to "127", "fnval" to "4048",
+   "fnver" to "0", "fourk" to "1", "platform" to "pc"
+  ),cookie)
   if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","获取视频流失败"))
   val d=root.optJSONObject("data")?:throw IOException("视频流数据为空")
   val options=qualityOptions(d)
@@ -44,7 +47,10 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
 
  fun dashStreamAtQuality(v:VideoInfo,q:Int,page:VideoPage?=null,cookie:String?=null):DashStreamInfo {
   val cid=page?.cid?:v.cid
-  val root=http.getJson("https://api.bilibili.com/x/player/playurl?bvid="+enc(v.bvid)+"&cid="+cid+"&qn="+q+"&fnval=4048&fourk=1",cookie)
+  val root=signedGet("https://api.bilibili.com/x/player/wbi/playurl", mapOf(
+   "bvid" to v.bvid, "cid" to cid.toString(), "qn" to q.toString(), "fnval" to "4048",
+   "fnver" to "0", "fourk" to "1", "platform" to "pc"
+  ),cookie)
   if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","当前账号或游客权限无法获取该清晰度"))
   val d=root.optJSONObject("data")?:throw IOException("视频流数据为空")
   val actual=d.optInt("quality",q)
@@ -99,8 +105,11 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
   val q=keyword.trim()
   if(q.isBlank())throw IOException("请输入搜索关键词")
   val type=when(kind){"video"->"video";"bangumi"->"media_bangumi";"up"->"bili_user";else->throw IOException("不支持的搜索类型")}
-  val url="https://api.bilibili.com/x/web-interface/search/type?search_type="+type+"&keyword="+enc(q)+"&page="+page.coerceIn(1,50)
-  val root=http.getJson(url,cookie)
+  val root=signedGet("https://api.bilibili.com/x/web-interface/wbi/search/type", mapOf(
+   "search_type" to type, "keyword" to q, "page" to page.coerceIn(1,50).toString(),
+   "page_size" to "20", "order" to "totalrank", "duration" to "0",
+   "tids" to "0", "web_location" to "1550101"
+  ),cookie)
   if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","搜索失败"))
   return root.optJSONObject("data")?:throw IOException("搜索结果为空")
  }
@@ -141,20 +150,39 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
  }
 
  private fun spaceArchiveSearch(mid:Long,page:Int,cookie:String?):org.json.JSONObject {
+  return signedGet("https://api.bilibili.com/x/space/wbi/arc/search", mapOf(
+   "mid" to mid.toString(), "order" to "pubdate", "pn" to page.coerceIn(1,100).toString(),
+   "ps" to "20", "web_location" to "1550101"
+  ),cookie).let { root ->
+   if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","读取 UP 主投稿失败"))
+   root.optJSONObject("data")?:throw IOException("UP 主投稿为空")
+  }
+ }
+
+ private fun signedGet(endpoint:String,parameters:Map<String,String>,cookie:String?):org.json.JSONObject {
+  http.ensureWebCookies(cookie)
   val nav=http.getJson("https://api.bilibili.com/x/web-interface/nav",cookie)
   if(nav.optInt("code",-1)!=0)throw IOException(nav.optString("message","读取 WBI 签名参数失败"))
   val wbi=nav.optJSONObject("data")?.optJSONObject("wbi_img")?:throw IOException("B站没有返回 WBI 签名参数")
   val imgKey=wbi.optString("img_url").substringAfterLast('/').substringBefore('.')
   val subKey=wbi.optString("sub_url").substringAfterLast('/').substringBefore('.')
-  if(imgKey.isBlank()||subKey.isBlank())throw IOException("WBI 签名参数不完整")
+  if(imgKey.length<32||subKey.length<32)throw IOException("WBI 签名参数不完整")
   val raw=imgKey+subKey
-  val mixin= intArrayOf(46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52)
-  val key=mixin.map{raw[it]}.joinToString("").take(32)
-  val params=sortedMapOf("mid" to mid.toString(),"order" to "pubdate","pn" to page.coerceIn(1,100).toString(),"ps" to "20","web_location" to "1550101","wts" to (System.currentTimeMillis()/1000).toString())
-  val query=params.entries.joinToString("&"){entry->entry.key+"="+URLEncoder.encode(entry.value.replace(Regex("[!'()*]"),""),"UTF-8")}
-  val root=http.getJson("https://api.bilibili.com/x/space/wbi/arc/search?"+query+"&w_rid="+md5(query+key),cookie)
-  if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","读取 UP 主投稿失败"))
-  return root.optJSONObject("data")?:throw IOException("UP 主投稿为空")
+  val mixin=intArrayOf(46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52)
+  val mixinKey=mixin.map{raw[it]}.joinToString("").take(32)
+  val sorted=java.util.TreeMap<String,String>()
+  sorted.putAll(parameters)
+  sorted["wts"]=(System.currentTimeMillis()/1000).toString()
+  val query=sorted.entries.joinToString("&"){entry->
+   entry.key+"="+URLEncoder.encode(entry.value.replace(Regex("[!'()*]"),""),"UTF-8")
+  }
+  return http.getJson(endpoint+"?"+query+"&w_rid="+md5(query+mixinKey),cookie)
+ }
+
+ private fun normalizeImageUrl(value:String):String = when {
+  value.startsWith("//")->"https:"+value
+  value.startsWith("http://")->"https://"+value.removePrefix("http://")
+  else->value
  }
 
  private fun md5(value:String):String = java.security.MessageDigest.getInstance("MD5")
