@@ -14,6 +14,7 @@ import com.sxsbsxs.bilibilidownload.core.repository.BiliRepository
 import com.sxsbsxs.bilibilidownload.core.parser.BangumiIdParser
 import com.sxsbsxs.bilibilidownload.core.security.CookieSession
 import com.sxsbsxs.bilibilidownload.core.security.BiliQrLoginClient
+import com.sxsbsxs.bilibilidownload.core.security.CookieVault
 import com.sxsbsxs.bilibilidownload.core.utils.BiliExportFormatter
 import org.json.JSONArray
 import org.json.JSONObject
@@ -27,7 +28,8 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     private val bangumiRepository = BangumiRepository()
     private val downloads = AndroidDownloadService(activity.applicationContext)
     private val taskDownloads = DownloadTaskRuntime.get(activity.applicationContext)
-    private val session = CookieSession()
+    private val cookieVault = CookieVault(activity.applicationContext)
+    private val session = CookieSession().apply { set(cookieVault.load()) }
     private val qrLogin = BiliQrLoginClient()
     private val videos = ConcurrentHashMap<String, com.sxsbsxs.bilibilidownload.core.model.VideoInfo>()
     private val bangumis = ConcurrentHashMap<String, BangumiInfo>()
@@ -302,7 +304,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
         io.execute {
             try {
                 val result = qrLogin.poll(key)
-                if (result.state == "success") session.set(result.cookie)
+                if (result.state == "success") { session.set(result.cookie); cookieVault.save(result.cookie) }
                 respond(requestId, JSONObject().put("ok", true).put("state", result.state)
                     .put("message", result.message).put("loggedIn", session.isLoggedIn))
             } catch (e: Exception) {
@@ -340,12 +342,32 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     @JavascriptInterface
     fun setCookie(cookie: String, requestId: String) {
         session.set(cookie)
+        cookieVault.save(cookie)
         respond(requestId, JSONObject().put("ok", true).put("loggedIn", session.isLoggedIn))
     }
 
     @JavascriptInterface
     fun accountStatus(requestId: String) {
-        respond(requestId, JSONObject().put("ok", true).put("loggedIn", session.isLoggedIn))
+        io.execute {
+            try {
+                if (!session.isLoggedIn) {
+                    respond(requestId, JSONObject().put("ok", true).put("loggedIn", false))
+                    return@execute
+                }
+                val profile = repository.accountProfile(session.get().orEmpty())
+                val loggedIn = profile.optBoolean("isLogin", true)
+                if (!loggedIn) {
+                    session.clear()
+                    cookieVault.clear()
+                }
+                respond(requestId, JSONObject().put("ok", true).put("loggedIn", loggedIn)
+                    .put("name", profile.optString("uname")).put("avatar", profile.optString("face"))
+                    .put("mid", profile.optLong("mid")))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", true).put("loggedIn", session.isLoggedIn)
+                    .put("error", e.message ?: "读取账号信息失败"))
+            }
+        }
     }
 
     private fun startDownloadService() {
