@@ -78,7 +78,7 @@ class BiliQrLoginClient {
         val matrix = QRCodeWriter().encode(value, BarcodeFormat.QR_CODE, 640, 640)
         val bitmap = Bitmap.createBitmap(640, 640, Bitmap.Config.ARGB_8888)
         for (y in 0 until 640) for (x in 0 until 640) {
-            bitmap.setPixel(x, y, if (matrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+            bitmap.setPixel(x, y, if (matrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
         }
         val bytes = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, bytes)
