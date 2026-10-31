@@ -33,7 +33,7 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
    val audios=dash.optJSONArray("audio")
    val arow=audios?.let{a->(0 until a.length()).mapNotNull{a.optJSONObject(it)}.maxByOrNull{it.optLong("bandwidth")}}
    val vu=vrow.optString("baseUrl").ifBlank{vrow.optString("base_url")}
-   val au=arow?.optString("baseUrl")?.ifBlank{arow.optString("base_url")}
+   val au=if(arow==null)null else arow.optString("baseUrl").ifBlank{arow.optString("base_url")}
    if(vu.isBlank()||au.isNullOrBlank())throw IOException("B站没有返回完整的 DASH 音视频流")
    return options to DashStreamInfo(vu,au,q,label,vrow.optString("codecs"),arow?.optString("codecs").orEmpty(),true)
   }
