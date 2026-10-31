@@ -20,8 +20,9 @@ class LocalMediaRepository(private val context:Context) {
         val collection=MediaStore.Files.getContentUri("external")
         val projection=arrayOf(MediaStore.Files.FileColumns._ID,MediaStore.Files.FileColumns.DISPLAY_NAME,MediaStore.Files.FileColumns.MIME_TYPE,MediaStore.Files.FileColumns.SIZE,MediaStore.Files.FileColumns.DATE_MODIFIED)
         val selection=MediaStore.Files.FileColumns.RELATIVE_PATH+" LIKE ? AND "+MediaStore.Files.FileColumns.IS_PENDING+"=0"
+        val folder=context.getSharedPreferences("app_settings",Context.MODE_PRIVATE).getString("download_folder","BilibiliDownload") ?: "BilibiliDownload"
         val rows=mutableListOf<LocalResource>()
-        context.contentResolver.query(collection,projection,selection,arrayOf("%BilibiliDownload%"),MediaStore.Files.FileColumns.DATE_MODIFIED+" DESC")?.use { cursor ->
+        context.contentResolver.query(collection,projection,selection,arrayOf("%"+folder+"%"),MediaStore.Files.FileColumns.DATE_MODIFIED+" DESC")?.use { cursor ->
             val idCol=cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
             val nameCol=cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
             val mimeCol=cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
@@ -38,9 +39,10 @@ class LocalMediaRepository(private val context:Context) {
     }
 
     private fun queryLegacyFiles():List<LocalResource> {
-        val root=context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: return emptyList()
-        if(!root.exists())return emptyList()
-        return root.walkTopDown().filter{it.isFile}.map { file ->
+        val base=context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: return emptyList()
+        val folder=context.getSharedPreferences("app_settings",Context.MODE_PRIVATE).getString("download_folder","BilibiliDownload") ?: "BilibiliDownload"
+        val roots=listOf(base,File(base,folder)).filter{it.exists()}
+        return roots.flatMap { root -> root.walkTopDown().filter{it.isFile}.toList() }.distinctBy{it.absolutePath}.map { file ->
             val mime=android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase())?:"application/octet-stream"
             val uri=FileProvider.getUriForFile(context,context.packageName+".files",file)
             LocalResource(file.absolutePath,file.name,mime,file.length(),file.lastModified()/1000,uri,category(mime,file.name))
