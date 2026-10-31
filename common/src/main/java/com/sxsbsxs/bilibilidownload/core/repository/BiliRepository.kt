@@ -59,7 +59,7 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
    val arow=audios?.let{a->(0 until a.length()).mapNotNull{a.optJSONObject(it)}.maxByOrNull{it.optLong("bandwidth")}}
    val vu=vrow.optString("baseUrl").ifBlank{vrow.optString("base_url")}
    val au=arow?.optString("baseUrl")?.ifBlank{arow.optString("base_url")}
-   if(vu.isNotBlank()&&!au.isNullOrBlank())return DashStreamInfo(vu,au,actual,label,vrow.optString("codecs"),arow.optString("codecs"),true)
+   if(vu.isNotBlank()&&!au.isNullOrBlank())return DashStreamInfo(vu,au,actual,label,vrow.optString("codecs"),arow?.optString("codecs").orEmpty(),true)
   }
   val durl=d.optJSONArray("durl")
   if(durl!=null&&durl.length()>0)return DashStreamInfo(durl.getJSONObject(0).optString("url"),null,actual,label,isDash=false)
