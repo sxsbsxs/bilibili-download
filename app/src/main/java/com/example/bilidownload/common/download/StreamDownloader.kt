@@ -17,7 +17,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 import com.example.bilidownload.common.network.BiliApi
-import com.example.bilidownload.model.VideoInfo
+import com.example.bilidownload.common.model.VideoInfo
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Date
