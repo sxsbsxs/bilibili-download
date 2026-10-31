@@ -467,6 +467,30 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     }
 
     @JavascriptInterface
+    fun ffmpegExtractAudio(uri: String, title: String, requestId: String) {
+        io.execute {
+            try {
+                val output = mediaProcessing.extractAudioFfmpeg(uri, title)
+                respond(requestId, JSONObject().put("ok", true).put("uri", output))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "FFmpeg 音频提取失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun ffmpegConvertMp4(uri: String, title: String, requestId: String) {
+        io.execute {
+            try {
+                val output = mediaProcessing.convertToMp4(uri, title)
+                respond(requestId, JSONObject().put("ok", true).put("uri", output))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "FFmpeg MP4 转换失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
     fun remuxMedia(uri: String, title: String, requestId: String) {
         io.execute {
             try {
