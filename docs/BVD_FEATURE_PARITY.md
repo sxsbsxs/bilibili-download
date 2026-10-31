@@ -52,7 +52,7 @@ Legend:
 - [~] App-owned task lifecycle: encrypted task metadata, progress, pause/resume/retry, process recovery, removal, bounded network retries, and one automatic signed-URL refresh attempt when video identity metadata is available.
 - [~] Foreground data-sync service with an ongoing notification keeps the shared coordinator alive while the WebView activity is backgrounded; active tasks are restored by the service after process recreation.
 - [~] Task list status filters and multi-select batch pause / resume / remove. Pause/resume is supported for app-owned tasks; legacy DownloadManager tasks can only be removed.
-- [ ] Batch download and quality-mismatch policy.
+- [~] Batch download for selected bangumi episodes; general multi-video batch queues and configurable mismatch handling remain incomplete.
 - [~] Completion publishes MP4 to Download/BilibiliDownload on Android 10+; older versions use app-specific Downloads storage.
 - [~] Subtitle and danmaku exports still use Android DownloadManager and do not yet share the app-owned pause/resume/retry task engine.
 
@@ -108,8 +108,8 @@ Important limitations: task URLs are encrypted with Android Keystore, but Cookie
 1. Improve the DASH pipeline: codec compatibility, optional FFmpeg fallback, and real-device validation.
 2. Expand EP/SS coverage, improve batch quality policy, and test real season/episode responses.
 3. Validate search and account-content APIs with real accounts; add short-link and Android share-sheet intake.
-4. Add in-app video/audio players and richer local metadata.
-5. Add media conversion and remaining settings.
+4. Extend the Media3 players with playlists, subtitle/audio track selection and richer local metadata.
+5. Complete FFmpeg/transcoding alternatives, playlists, remaining settings and real-device validation.
 
 Do not mark an item complete until its Kotlin implementation, UI connection, and a meaningful test/build path exist.
 
