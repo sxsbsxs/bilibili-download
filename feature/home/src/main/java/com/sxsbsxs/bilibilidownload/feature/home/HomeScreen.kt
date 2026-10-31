@@ -14,8 +14,13 @@ import androidx.compose.ui.unit.dp
 import com.sxsbsxs.bilibilidownload.core.BiliApi
 import com.sxsbsxs.bilibilidownload.core.VideoDownloadManager
 import com.sxsbsxs.bilibilidownload.core.VideoInfo
+import com.sxsbsxs.bilibilidownload.core.adapter.QualityOptionAdapter
+import com.sxsbsxs.bilibilidownload.core.manager.DownloadTaskRegistry
 import com.sxsbsxs.bilibilidownload.core.model.StreamOption
 import com.sxsbsxs.bilibilidownload.core.model.VideoPage
+import com.sxsbsxs.bilibilidownload.core.repository.BiliRepository
+import com.sxsbsxs.bilibilidownload.core.storage.QualityPreferences
+import com.sxsbsxs.bilibilidownload.core.utils.formatDuration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -23,7 +28,10 @@ import kotlinx.coroutines.withContext
 @Composable
 fun HomeScreen(context: Context) {
     val api = remember { BiliApi() }
+    val repository = remember { BiliRepository() }
     val downloads = remember { VideoDownloadManager(context) }
+    val registry = remember { DownloadTaskRegistry(context) }
+    val preferences = remember { QualityPreferences(context) }
     val scope = rememberCoroutineScope()
     var input by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
@@ -32,10 +40,26 @@ fun HomeScreen(context: Context) {
     var pages by remember { mutableStateOf<List<VideoPage>>(emptyList()) }
     var selectedPage by remember { mutableStateOf<VideoPage?>(null) }
     var qualities by remember { mutableStateOf<List<StreamOption>>(emptyList()) }
-    var selectedQuality by remember { mutableIntStateOf(80) }
+    var selectedQuality by remember { mutableIntStateOf(preferences.quality) }
     var notice by remember { mutableStateOf<String?>(null) }
-    var taskIds by remember { mutableStateOf<List<Long>>(emptyList()) }
-    var taskText by remember { mutableStateOf("暂无下载任务") }
+    var taskIds by remember { mutableStateOf(registry.all()) }
+    var taskText by remember { mutableStateOf("已保存 " + taskIds.size + " 个下载任务") }
+
+    fun refreshQualities(v: VideoInfo, page: VideoPage?) {
+        scope.launch {
+            try {
+                val streamData = withContext(Dispatchers.IO) { repository.streams(v, page) }
+                qualities = QualityOptionAdapter.sorted(streamData.first)
+                if (qualities.none { it.quality == selectedQuality }) {
+                    selectedQuality = streamData.second.quality.takeIf { q -> qualities.any { it.quality == q } } ?: qualities.firstOrNull()?.quality ?: 80
+                    preferences.quality = selectedQuality
+                }
+            } catch (e: Exception) {
+                qualities = emptyList()
+                error = e.message ?: "清晰度读取失败"
+            }
+        }
+    }
 
     MaterialTheme(colorScheme = lightColorScheme()) {
         Scaffold(topBar = {
@@ -58,10 +82,13 @@ fun HomeScreen(context: Context) {
                     scope.launch {
                         try {
                             val result = withContext(Dispatchers.IO) { api.video(input) }
-                            video = result; pages = result.pages; selectedPage = result.pages.firstOrNull()
-                            val streamData = withContext(Dispatchers.IO) { api.streams(result) }
-                            qualities = streamData.first
-                            selectedQuality = streamData.second.quality.takeIf { q -> qualities.any { it.quality == q } } ?: qualities.firstOrNull()?.quality ?: 80
+                            video = result
+                            pages = result.pages
+                            selectedPage = result.pages.firstOrNull()
+                            val streamData = withContext(Dispatchers.IO) { repository.streams(result, selectedPage) }
+                            qualities = QualityOptionAdapter.sorted(streamData.first)
+                            selectedQuality = streamData.second.quality.takeIf { q -> qualities.any { it.quality == q } } ?: qualities.firstOrNull()?.quality ?: preferences.quality
+                            preferences.quality = selectedQuality
                         } catch (e: Exception) { error = e.message ?: "解析失败" }
                         finally { loading = false }
                     }
@@ -73,38 +100,44 @@ fun HomeScreen(context: Context) {
                     ElevatedCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                             Text(v.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("UP 主：${v.owner}")
-                            Text("BV：${v.bvid}  ·  AV：av${v.aid}")
-                            Text("时长：${v.duration / 60} 分 ${v.duration % 60} 秒")
+                            Text("UP 主：" + v.owner)
+                            Text("BV：" + v.bvid + "  ·  AV：av" + v.aid)
+                            Text("时长：" + formatDuration(v.duration))
                             if (v.description.isNotBlank()) Text(v.description, maxLines = 4, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (pages.size > 1) {
                                 Text("分 P 选择", fontWeight = FontWeight.SemiBold)
-                                pages.forEach { p ->
-                                    FilterChip(selected = selectedPage?.cid == p.cid, onClick = { selectedPage = p }, label = { Text("P${p.page} · ${p.title}") })
+                                pages.forEach { page ->
+                                    FilterChip(selected = selectedPage?.cid == page.cid, onClick = {
+                                        selectedPage = page
+                                        refreshQualities(v, page)
+                                    }, label = { Text("P" + page.page + " · " + page.title) })
                                 }
                             }
                             Text("可用清晰度", fontWeight = FontWeight.SemiBold)
                             if (qualities.isEmpty()) Text("清晰度信息暂不可用")
                             FlowRowCompat(qualities) { option ->
-                                FilterChip(selected = selectedQuality == option.quality, onClick = { selectedQuality = option.quality }, label = { Text(option.description) })
+                                FilterChip(selected = selectedQuality == option.quality, onClick = {
+                                    selectedQuality = option.quality
+                                    preferences.quality = option.quality
+                                }, label = { Text(option.description) })
                             }
                             Button(onClick = {
                                 scope.launch {
                                     try {
-                                        val stream = withContext(Dispatchers.IO) { api.streams(v).second }
+                                        val stream = withContext(Dispatchers.IO) { repository.streams(v, selectedPage).second }
                                         val id = downloads.enqueue(stream.url, v.title)
-                                        taskIds = taskIds + id
-                                        notice = "已加入系统下载队列（任务 #$id）"
+                                        registry.add(id); taskIds = registry.all()
+                                        notice = "已加入系统下载队列（任务 #" + id + "）"
                                     } catch (e: Exception) { notice = e.message ?: "下载任务创建失败" }
                                 }
                             }, modifier = Modifier.fillMaxWidth()) { Text("下载当前可用流") }
                             OutlinedButton(onClick = {
                                 scope.launch {
                                     try {
-                                        val stream = withContext(Dispatchers.IO) { com.sxsbsxs.bilibilidownload.core.repository.BiliRepository().streamAtQuality(v, selectedQuality, selectedPage) }
+                                        val stream = withContext(Dispatchers.IO) { repository.streamAtQuality(v, selectedQuality, selectedPage) }
                                         val id = downloads.enqueue(stream.url, v.title)
-                                        taskIds = taskIds + id
-                                        notice = "已加入下载队列：${stream.description}"
+                                        registry.add(id); taskIds = registry.all()
+                                        notice = "已加入下载队列：" + stream.description
                                     } catch (e: Exception) { notice = e.message ?: "下载失败" }
                                 }
                             }, modifier = Modifier.fillMaxWidth()) { Text("按所选清晰度下载") }
@@ -120,13 +153,18 @@ fun HomeScreen(context: Context) {
                             OutlinedButton(onClick = {
                                 scope.launch {
                                     val records = withContext(Dispatchers.IO) { downloads.query(taskIds) }
-                                    taskText = if (records.isEmpty()) "暂无下载任务" else records.joinToString("\n") { r ->
-                                        val status = when (r.status) { 8 -> "已完成"; 16 -> "失败"; 2 -> "正在下载"; 4 -> "暂停"; else -> "排队/处理中" }
-                                        "${r.title}：$status" + if (r.totalBytes > 0) "（${r.downloadedBytes / 1024} / ${r.totalBytes / 1024} KB）" else ""
+                                    taskText = if (records.isEmpty()) "暂无下载任务" else records.joinToString("\n") { record ->
+                                        val status = when (record.status) { 8 -> "已完成"; 16 -> "失败"; 2 -> "正在下载"; 4 -> "暂停"; else -> "排队/处理中" }
+                                        record.title + "：" + status + if (record.totalBytes > 0) "（" + record.downloadedBytes / 1024 + " / " + record.totalBytes / 1024 + " KB）" else ""
                                     }
                                 }
                             }) { Text("刷新状态") }
-                            OutlinedButton(onClick = { taskIds.forEach(downloads::remove); taskIds = emptyList(); taskText = "任务已移除" }) { Text("清除任务") }
+                            OutlinedButton(onClick = {
+                                taskIds.forEach(downloads::remove)
+                                registry.clear()
+                                taskIds = emptyList()
+                                taskText = "任务已清空"
+                            }) { Text("清除任务") }
                         }
                     }
                 }
