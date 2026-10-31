@@ -86,9 +86,9 @@ class PlayerActivity : Activity() {
             root.addView(audioPanel, LinearLayout.LayoutParams(-1, 0, 1f))
             playerView = PlayerView(this).apply {
                 useController = true
-                visibility = View.GONE
+                setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
             }
-            root.addView(playerView, LinearLayout.LayoutParams(1, 1))
+            root.addView(playerView, LinearLayout.LayoutParams(-1, 220))
         } else {
             playerView = PlayerView(this).apply {
                 useController = true
