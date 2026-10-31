@@ -48,7 +48,9 @@ class DashDownloadCoordinator(context: Context) {
         @Volatile var paused: Boolean = false,
         @Volatile var cancelled: Boolean = false,
         @Volatile var cookie: String? = null,
-        @Volatile var call: Call? = null
+        @Volatile var call: Call? = null,
+        @Volatile var generation: Long = 0,
+        @Volatile var running: Boolean = false
     )
 
     init {
@@ -80,6 +82,7 @@ class DashDownloadCoordinator(context: Context) {
         val task = tasks[id] ?: return false
         if (task.status != 1 && task.status != 2) return false
         task.paused = true
+        task.generation++
         task.status = 4
         task.call?.cancel()
         persist()
@@ -91,6 +94,7 @@ class DashDownloadCoordinator(context: Context) {
         val task = tasks[id] ?: return false
         if (task.status != 4 && task.status != 16) return false
         task.paused = false
+        task.generation++
         task.cancelled = false
         task.error = ""
         task.status = 1
@@ -117,24 +121,28 @@ class DashDownloadCoordinator(context: Context) {
     }
 
     private fun schedule(task: Task) {
-        executor.execute { runTask(task) }
+        synchronized(task) {
+            if (task.running || task.cancelled || task.paused) return
+            task.running = true
+        }
+        executor.execute { runTask(task, task.generation) }
     }
 
-    private fun runTask(task: Task) {
+    private fun runTask(task: Task, generation: Long) {
         val work = File(app.cacheDir, workName(task.id))
         try {
             work.mkdirs()
             val video = File(work, "video.m4s")
             val audio = File(work, "audio.m4s")
-            download(task.videoUrl, video, task)
-            checkActive(task)
-            download(task.audioUrl, audio, task)
-            checkActive(task)
+            download(task.videoUrl, video, task, generation)
+            checkActive(task, generation)
+            download(task.audioUrl, audio, task, generation)
+            checkActive(task, generation)
             task.status = 3
             persist()
             val output = File(work, "merged.mp4")
             mux(video, audio, output)
-            checkActive(task)
+            checkActive(task, generation)
             publish(output, task.title)
             task.downloaded = output.length()
             task.total = output.length()
@@ -142,7 +150,7 @@ class DashDownloadCoordinator(context: Context) {
             task.error = ""
             persist()
         } catch (e: Exception) {
-            when {
+            if (generation == task.generation) when {
                 task.cancelled -> Unit
                 task.paused -> {
                     task.status = 4
@@ -157,10 +165,12 @@ class DashDownloadCoordinator(context: Context) {
         } finally {
             task.call = null
             if (task.status == 8 || task.cancelled) work.deleteRecursively()
+            synchronized(task) { task.running = false }
+            if (task.status == 1 && !task.cancelled && !task.paused) schedule(task)
         }
     }
 
-    private fun download(url: String, target: File, task: Task) {
+    private fun download(url: String, target: File, task: Task, generation: Long) {
         val offset = if (target.exists()) target.length() else 0L
         val request = Request.Builder().url(url)
             .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36")
@@ -187,7 +197,7 @@ class DashDownloadCoordinator(context: Context) {
                     val buffer = ByteArray(64 * 1024)
                     var lastPersisted = task.downloaded
                     while (true) {
-                        checkActive(task)
+                        checkActive(task, generation)
                         val n = input.read(buffer)
                         if (n < 0) break
                         output.write(buffer, 0, n)
@@ -324,9 +334,9 @@ class DashDownloadCoordinator(context: Context) {
         }
     }
 
-    private fun checkActive(task: Task) {
+    private fun checkActive(task: Task, generation: Long) {
         if (task.cancelled || Thread.currentThread().isInterrupted) throw IOException("任务已取消")
-        if (task.paused) throw IOException("任务已暂停")
+        if (task.paused || task.generation != generation) throw IOException("任务已暂停")
     }
 
     private fun workName(id: Long) = "dash_" + id.toString().removePrefix("-")
