@@ -1,10 +1,13 @@
 package com.sxsbsxs.bilibilidownload.bridge
 
 import android.app.Activity
+import android.content.Intent
+import android.os.Build
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import com.sxsbsxs.bilibilidownload.core.download.AndroidDownloadService
 import com.sxsbsxs.bilibilidownload.core.download.DownloadTaskCoordinator
+import com.sxsbsxs.bilibilidownload.core.download.DownloadTaskRuntime
 import com.sxsbsxs.bilibilidownload.core.model.BangumiInfo
 import com.sxsbsxs.bilibilidownload.core.repository.BangumiRepository
 import com.sxsbsxs.bilibilidownload.core.repository.BiliRepository
@@ -23,7 +26,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     private val repository = BiliRepository()
     private val bangumiRepository = BangumiRepository()
     private val downloads = AndroidDownloadService(activity.applicationContext)
-    private val taskDownloads = DownloadTaskCoordinator(activity.applicationContext)
+    private val taskDownloads = DownloadTaskRuntime.get(activity.applicationContext)
     private val session = CookieSession()
     private val qrLogin = BiliQrLoginClient()
     private val videos = ConcurrentHashMap<String, com.sxsbsxs.bilibilidownload.core.model.VideoInfo>()
@@ -132,6 +135,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
                             .put("error", e.message ?: "创建下载任务失败"))
                     }
                 }
+                if (queued.length() > 0) startDownloadService()
                 respond(requestId, JSONObject().put("ok", queued.length() > 0).put("queued", queued)
                     .put("failed", failed).put("queuedCount", queued.length()).put("failedCount", failed.length())
                     .put("error", if (queued.length() == 0) "所选剧集均未能加入下载队列" else ""))
@@ -149,6 +153,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
                 val page = video.pages.firstOrNull { it.cid == cid }
                 val stream = repository.dashStreamAtQuality(video, quality, page, session.get())
                 val id = taskDownloads.enqueue(stream, title, session.get(), video.bvid, cid, stream.quality)
+                startDownloadService()
                 respond(requestId, JSONObject().put("ok", true).put("id", id).put("quality", stream.quality)
                     .put("description", stream.description).put("mode", if (stream.isDash) "dash" else "progressive"))
             } catch (e: Exception) {
@@ -266,6 +271,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     fun resumeDownload(id: Long, requestId: String) {
         io.execute {
             val ok = if (id < 0L) taskDownloads.resume(id) else false
+            if (ok) startDownloadService()
             respond(requestId, JSONObject().put("ok", ok).put("error", if (ok) "" else "该任务暂不支持应用内恢复"))
         }
     }
@@ -274,6 +280,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     fun retryDownload(id: Long, requestId: String) {
         io.execute {
             val ok = if (id < 0L) taskDownloads.retry(id) else false
+            if (ok) startDownloadService()
             respond(requestId, JSONObject().put("ok", ok).put("error", if (ok) "" else "该任务暂不支持应用内重试"))
         }
     }
@@ -322,6 +329,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
                     }
                     if (ok) succeeded++ else skipped++
                 }
+                if ((action == "resume" || action == "retry") && succeeded > 0) startDownloadService()
                 respond(requestId, JSONObject().put("ok", true).put("succeeded", succeeded).put("skipped", skipped))
             } catch (e: Exception) {
                 respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "批量操作失败"))
@@ -340,6 +348,11 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
         respond(requestId, JSONObject().put("ok", true).put("loggedIn", session.isLoggedIn))
     }
 
+    private fun startDownloadService() {
+        val intent = Intent(activity, com.sxsbsxs.bilibilidownload.DownloadForegroundService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) activity.startForegroundService(intent) else activity.startService(intent)
+    }
+
     private fun respond(requestId: String, value: JSONObject) {
         val safeId = JSONObject.quote(requestId)
         val safeValue = JSONObject.quote(value.toString())
@@ -352,7 +365,6 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
 
     fun close() {
         io.shutdownNow()
-        taskDownloads.close()
         videos.clear()
         bangumis.clear()
         session.clear()
