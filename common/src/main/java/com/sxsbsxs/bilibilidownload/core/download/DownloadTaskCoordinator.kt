@@ -9,6 +9,9 @@ import android.media.MediaMuxer
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
 import com.sxsbsxs.bilibilidownload.core.model.DashStreamInfo
 import com.sxsbsxs.bilibilidownload.core.model.DownloadRecord
 import okhttp3.Call
@@ -18,6 +21,11 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
@@ -327,11 +335,51 @@ class DownloadTaskCoordinator(context: Context) {
                 .put("status", t.status).put("downloaded", t.downloaded)
                 .put("total", t.total).put("error", t.error))
         }
-        prefs.edit().putString("tasks", rows.toString()).apply()
+        prefs.edit().putString("tasks_secure", encrypt(rows.toString())).remove("tasks").apply()
+    }
+
+    private fun encrypt(value: String): String {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
+        val encrypted = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
+        return Base64.encodeToString(cipher.iv + encrypted, Base64.NO_WRAP)
+    }
+
+    private fun decrypt(value: String): String {
+        val packed = Base64.decode(value, Base64.NO_WRAP)
+        if (packed.size <= 12) throw IOException("下载任务加密数据无效")
+        val iv = packed.copyOfRange(0, 12)
+        val encrypted = packed.copyOfRange(12, packed.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(128, iv))
+        return String(cipher.doFinal(encrypted), Charsets.UTF_8)
+    }
+
+    private fun getOrCreateKey(): SecretKey {
+        val alias = "bilibili_download_task_key_v1"
+        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        val existing = store.getKey(alias, null) as? SecretKey
+        if (existing != null) return existing
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        generator.init(
+            KeyGenParameterSpec.Builder(
+                alias,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+            ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setRandomizedEncryptionRequired(true)
+                .build()
+        )
+        return generator.generateKey()
     }
 
     private fun restoreTasks() {
-        val rows = try { JSONArray(prefs.getString("tasks", "[]")) } catch (_: Exception) { JSONArray() }
+        val raw = try {
+            prefs.getString("tasks_secure", null)?.let { decrypt(it) }
+                ?: prefs.getString("tasks", "[]")
+        } catch (_: Exception) { "[]" }
+        val rows = try { JSONArray(raw) } catch (_: Exception) { JSONArray() }
+        if (prefs.contains("tasks")) persist()
         for (i in 0 until rows.length()) {
             val row = rows.optJSONObject(i) ?: continue
             val id = row.optLong("id")
