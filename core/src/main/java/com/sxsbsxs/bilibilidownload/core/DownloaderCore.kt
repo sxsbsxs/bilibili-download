@@ -4,15 +4,16 @@ package com.sxsbsxs.bilibilidownload.core
 import android.content.Context
 import com.sxsbsxs.bilibilidownload.core.download.AndroidDownloadService
 import com.sxsbsxs.bilibilidownload.core.model.*
-import com.sxsbsxs.bilibilidownload.core.parser.VideoIdParser
 import com.sxsbsxs.bilibilidownload.core.repository.BiliRepository
 
-/** Compatibility facade retained while the app migrates to the feature-oriented packages. */
 typealias VideoInfo = com.sxsbsxs.bilibilidownload.core.model.VideoInfo
 typealias VideoPage = com.sxsbsxs.bilibilidownload.core.model.VideoPage
 typealias StreamOption = com.sxsbsxs.bilibilidownload.core.model.StreamOption
 typealias VideoId = com.sxsbsxs.bilibilidownload.core.parser.VideoId
-val VideoIdParser = VideoIdParser
+
+object VideoIdParser {
+    fun parse(raw: String): VideoId? = com.sxsbsxs.bilibilidownload.core.parser.VideoIdParser.parse(raw)
+}
 
 class BiliApi {
     private val repository = BiliRepository()
