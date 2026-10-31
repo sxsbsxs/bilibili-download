@@ -18,7 +18,7 @@ Legend:
 - [ ] Bilibili share-link short URL resolution.
 - [~] Global video search through the web search API, with pagination and result-to-video parsing.
 - [~] Bangumi / film search through the media_bangumi search category; season results open the season parser.
-- [~] UP 主 search and public uploader submission list lookup.
+- [~] UP 主 search and public uploader submission list lookup; the WBI-signed space archive endpoint is used.
 - [x] Search history stored locally in WebView storage; it is not uploaded.
 - [ ] Android share-sheet intent intake.
 
