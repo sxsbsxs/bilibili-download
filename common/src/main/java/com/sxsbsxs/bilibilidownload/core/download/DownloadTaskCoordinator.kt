@@ -197,7 +197,7 @@ class DownloadTaskCoordinator(context: Context) {
                     completed = true
                     break
                 } catch (expired: ExpiredStreamException) {
-                    if (refreshAttempt != 0) throw expired
+                    if (refreshAttempt != 0) throw IOException("直链刷新后仍然返回 HTTP 403/过期响应，请重新解析视频并检查 B 站登录状态", expired)
                     refreshExpiredStream(task, video, audio, generation)
                 }
             }
