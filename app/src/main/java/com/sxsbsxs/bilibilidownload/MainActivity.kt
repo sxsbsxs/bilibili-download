@@ -2,7 +2,6 @@ package com.sxsbsxs.bilibilidownload
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.platform.ComposeView
 import com.sxsbsxs.bilibilidownload.databinding.ActivityMainBinding
 import com.sxsbsxs.bilibilidownload.feature.home.HomeScreen
 
