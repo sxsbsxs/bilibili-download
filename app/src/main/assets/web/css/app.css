@@ -36,3 +36,6 @@
 #result .quality-chip{font-size:12px;padding:9px 12px}
 #result #download-btn{font-size:14px;height:52px}
 #bangumi-result .muted{line-height:1.5}
+
+/* 精简界面：仅保留首页与我的两个主入口 */
+.topbar{display:none!important}.app-shell main{padding-top:22px}.home-title{font-size:30px;margin:4px 0 18px}.page-title{margin:0 0 18px}.page-title h1{font-size:27px;margin:0}.lead,.footnote{display:none!important}.removed-feature{display:none!important}.bottom-nav{height:68px;padding:6px 20px calc(6px + env(safe-area-inset-bottom));justify-content:center;gap:34px}.nav-item{max-width:110px;flex:0 1 110px}.qr-login-panel{min-height:210px}.qr-link{display:block;width:100%;border:0;background:transparent;color:#1687e8;text-align:center;padding:12px 8px;font-size:13px;font-weight:700}.page-title .soft-btn{margin-top:10px}
