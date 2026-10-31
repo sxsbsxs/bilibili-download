@@ -25,7 +25,7 @@ An independent Android Bilibili downloader. The Android host and download engine
 - Search Bilibili videos, bangumi/media and UP accounts with pagination; local search history is stored on-device. UP search results can load public submission lists.
 - Account center: created favorite folders and their resources, watch history, watch-later, recent likes and own submissions (login required; favorite folders/resources, likes and uploads support paging; API coverage still needs real-account validation).
 - Local resource library: scan the configured Download subfolder, filter videos/audio/subtitles/data, play media in-app with Media3, inspect metadata, extract existing AAC tracks to M4A, remux supported tracks to MP4, open externally, share/export and delete files.
-- Convert Bilibili subtitle JSON to SRT and danmaku XML to CSV, then save the files to `Download/BilibiliDownload` on Android 10+.
+- Convert Bilibili subtitle JSON to SRT and danmaku XML to CSV, then save the files to the configured Download subfolder on Android 10+.
 - Light / dark WebView UI with persisted download subfolder, filename template, quality preference, intermediate-stream retention and picture-in-picture settings.
 
 ## Known limitations
