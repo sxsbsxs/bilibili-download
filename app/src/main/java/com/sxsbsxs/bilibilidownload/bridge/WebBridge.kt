@@ -60,14 +60,82 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
                 val page = video.pages.firstOrNull { it.cid == cid }
                 val stream = repository.streamAtQuality(video, quality, page, session.get())
                 val id = downloads.enqueue(stream.url, title)
-                val ids = prefs.getStringSet("ids", emptySet()).orEmpty().toMutableSet()
-                ids.add(id.toString())
-                prefs.edit().putStringSet("ids", ids).apply()
+                rememberDownload(id)
                 respond(requestId, JSONObject().put("ok", true).put("id", id).put("quality", stream.quality).put("description", stream.description))
             } catch (e: Exception) {
                 respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "无法创建下载任务"))
             }
         }
+    }
+
+
+    @JavascriptInterface
+    fun getQualities(token: String, cid: Long, requestId: String) {
+        io.execute {
+            try {
+                val video = videos[token] ?: throw IllegalStateException("视频信息已过期，请重新解析")
+                val page = video.pages.firstOrNull { it.cid == cid }
+                val data = repository.streams(video, page, session.get())
+                val rows = JSONArray().apply {
+                    data.first.forEach { q -> put(JSONObject().put("quality", q.quality).put("description", q.description)) }
+                }
+                respond(requestId, JSONObject().put("ok", true).put("qualities", rows)
+                    .put("defaultQuality", data.second.quality).put("streamMessage", ""))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "清晰度读取失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun getSubtitles(token: String, cid: Long, requestId: String) {
+        io.execute {
+            try {
+                val video = videos[token] ?: throw IllegalStateException("视频信息已过期，请重新解析")
+                val page = video.pages.firstOrNull { it.cid == cid }
+                val rows = JSONArray().apply {
+                    repository.subtitles(video, page, session.get()).forEach { item ->
+                        put(JSONObject().put("language", item.language).put("url", item.url).put("format", item.format))
+                    }
+                }
+                respond(requestId, JSONObject().put("ok", true).put("subtitles", rows))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "字幕读取失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun exportSubtitle(url: String, title: String, requestId: String) {
+        io.execute {
+            try {
+                if (!url.startsWith("https://")) throw IllegalArgumentException("字幕地址不安全")
+                val id = downloads.enqueue(url, title + "_subtitle", "application/json", "json")
+                rememberDownload(id)
+                respond(requestId, JSONObject().put("ok", true).put("id", id))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "字幕下载失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun exportDanmaku(cid: Long, title: String, requestId: String) {
+        io.execute {
+            try {
+                val id = downloads.enqueue(repository.danmakuUrl(cid), title + "_danmaku", "application/xml", "xml")
+                rememberDownload(id)
+                respond(requestId, JSONObject().put("ok", true).put("id", id))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "弹幕下载失败"))
+            }
+        }
+    }
+
+    private fun rememberDownload(id: Long) {
+        val ids = prefs.getStringSet("ids", emptySet()).orEmpty().toMutableSet()
+        ids.add(id.toString())
+        prefs.edit().putStringSet("ids", ids).apply()
     }
 
     @JavascriptInterface

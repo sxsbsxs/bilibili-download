@@ -35,5 +35,21 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
   if(rows.length()==0)throw IOException("没有可用下载流")
   val actual=d.optInt("quality",q);return StreamInfo(rows.getJSONObject(0).optString("url"),actual,"清晰度 "+actual)
  }
+
+ fun subtitles(v:VideoInfo,page:VideoPage?=null,cookie:String?=null):List<SubtitleTrack>{
+  val cid=page?.cid?:v.cid
+  val root=http.getJson("https://api.bilibili.com/x/player/v2?bvid="+enc(v.bvid)+"&cid="+cid,cookie)
+  if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","获取字幕列表失败"))
+  val rows=root.optJSONObject("data")?.optJSONObject("subtitle")?.optJSONArray("subtitles")?:return emptyList()
+  return buildList {
+   for(i in 0 until rows.length()){
+    val row=rows.optJSONObject(i)?:continue
+    var url=row.optString("subtitle_url").ifBlank{row.optString("url")}
+    if(url.startsWith("//"))url="https:"+url
+    if(url.startsWith("https://"))add(SubtitleTrack(row.optString("lan_doc").ifBlank{row.optString("lan","字幕")},url))
+   }
+  }
+ }
+ fun danmakuUrl(cid:Long)="https://comment.bilibili.com/"+cid+".xml"
  private fun enc(s:String)=URLEncoder.encode(s,"UTF-8")
 }

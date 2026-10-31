@@ -6,11 +6,11 @@ import android.os.Environment
 import com.sxsbsxs.bilibilidownload.core.model.DownloadRecord
 class AndroidDownloadService(context:Context) {
  private val manager=context.applicationContext.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
- fun enqueue(url:String,title:String,mimeType:String="video/mp4"):Long {
+ fun enqueue(url:String,title:String,mimeType:String="video/mp4",extension:String="mp4"):Long {
   val safe=title.replace(Regex("[\\\\/:*?\"<>|]"),"_").trim().take(90).ifBlank{"bilibili_video"}
   val request=DownloadManager.Request(Uri.parse(url)).setTitle(safe).setDescription("Bilibili 视频下载").setMimeType(mimeType)
    .setAllowedOverMetered(true).setAllowedOverRoaming(false).setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-   .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,"BilibiliDownload/"+safe+".mp4")
+   .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,"BilibiliDownload/"+safe+"."+extension.trimStart('.').ifBlank{"mp4"})
    .addRequestHeader("User-Agent","Mozilla/5.0").addRequestHeader("Referer","https://www.bilibili.com/")
   return manager.enqueue(request)
  }
