@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit
 
 /** Bilibili web QR login. The QR payload is rendered locally; it is never sent to a third-party QR service. */
 class BiliQrLoginClient {
-    data class QrTicket(val key: String, val imageDataUrl: String)
+    data class QrTicket(val key: String, val imageDataUrl: String, val url: String)
     data class PollResult(val state: String, val message: String, val cookie: String = "")
 
     private val client = OkHttpClient.Builder()
@@ -37,7 +37,7 @@ class BiliQrLoginClient {
             val key = data.optString("qrcode_key")
             val url = data.optString("url")
             if (key.isBlank() || url.isBlank()) throw IOException("B站没有返回有效二维码")
-            return QrTicket(key, renderQr(url))
+            return QrTicket(key, renderQr(url), url)
         }
     }
 
