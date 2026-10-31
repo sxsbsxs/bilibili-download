@@ -24,9 +24,9 @@ An independent Android Bilibili downloader. The Android host and download engine
 - Encrypt the login Cookie with AES-GCM using an Android Keystore key. Logout clears the stored credential; task URLs and task metadata use separate encrypted storage.
 - Search Bilibili videos, bangumi/media and UP accounts with pagination; local search history is stored on-device. UP search results can load public submission lists.
 - Account center: created favorite folders and their resources, watch history, watch-later, recent likes and own submissions (login required; favorite folders/resources, likes and uploads support paging; API coverage still needs real-account validation).
-- Local resource library: scan the app's `Download/BilibiliDownload` folder, filter videos/audio/subtitles/data, open with an external app, share/export through Android's chooser, and delete files.
+- Local resource library: scan the configured Download subfolder, filter videos/audio/subtitles/data, play media in-app with Media3, inspect metadata, extract existing AAC tracks to M4A, remux supported tracks to MP4, open externally, share/export and delete files.
 - Convert Bilibili subtitle JSON to SRT and danmaku XML to CSV, then save the files to `Download/BilibiliDownload` on Android 10+.
-- Light / dark WebView UI.
+- Light / dark WebView UI with persisted download subfolder, filename template, quality preference, intermediate-stream retention and picture-in-picture settings.
 
 ## Known limitations
 
@@ -35,7 +35,7 @@ An independent Android Bilibili downloader. The Android host and download engine
 - DASH muxing uses Android MediaMuxer, not FFmpeg; codec/container support varies by device.
 - Batch pause / resume applies to app-owned tasks. Legacy Android DownloadManager tasks can be removed but cannot be paused or resumed through this app UI.
 - QR login, Cookie persistence, background service and media exports are implemented in code but still require real-device and real-account validation.
-- Local media indexing, built-in video/audio players, account favorites/history pages, search, FFmpeg conversions and advanced download settings are not implemented yet.
+- FFmpeg transcoding and broad container conversion, playlists, audio spectrum, arbitrary SAF destination selection and automatic post-download processing are not implemented. Media3 playback and MediaExtractor/MediaMuxer processing still need real-device codec and background-playback validation.
 
 ## Build
 
