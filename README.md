@@ -1,20 +1,9 @@
 # Bilibili Download
 
-Native Android Bilibili downloader written in Kotlin and Jetpack Compose.
+A clean-room Android Bilibili downloader using Kotlin and Jetpack Compose.
 
-## Architecture
+The new codebase is independent of the previous BiliDownload-KT business implementation. It uses a small Android multi-module foundation: app for UI, core for models/API/download integration. The project organization is informed by BVD's structure only; no BVD business code is copied.
 
-The source tree uses a layered, feature-oriented layout inspired by the *organization* of BVD. Its application implementation is independently maintained.
+Initial functions: BV/AV parsing, visitor-accessible video metadata, visitor-accessible progressive stream lookup, and Android DownloadManager handoff. Quality availability remains controlled by Bilibili. No DRM, paywall, regional, or account entitlement bypass is included.
 
-- `common/model`: shared video, stream and account models
-- `common/network`: Bilibili API and authorization
-- `common/download`: stream download and media muxing
-- `common/storage`: encrypted credential storage
-- `feature/compose`: Compose UI
-- `service` / `notification`: planned background execution and task notifications
-
-## Build
-
-GitHub Actions will build a debug APK with JDK 17 and Gradle 8.9. The workflow uses the Gradle installation provided by setup-gradle because the source repository did not include a wrapper JAR.
-
-The app only exposes media and quality levels available to the current visitor/account. It does not bypass paywalls, DRM, regional restrictions or account entitlements.
+GitHub Actions builds a debug APK using JDK 17, Gradle 8.9, and AGP 8.7.3.
