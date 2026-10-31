@@ -35,6 +35,8 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     private val bangumis = ConcurrentHashMap<String, BangumiInfo>()
     private val prefs = activity.getSharedPreferences("download_ids", Activity.MODE_PRIVATE)
 
+    init { taskDownloads.updateSessionCookie(session.get()) }
+
     @JavascriptInterface
     fun parseVideo(raw: String, requestId: String) {
         io.execute {
@@ -304,7 +306,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
         io.execute {
             try {
                 val result = qrLogin.poll(key)
-                if (result.state == "success") { session.set(result.cookie); cookieVault.save(result.cookie) }
+                if (result.state == "success") { session.set(result.cookie); cookieVault.save(result.cookie); taskDownloads.updateSessionCookie(result.cookie) }
                 respond(requestId, JSONObject().put("ok", true).put("state", result.state)
                     .put("message", result.message).put("loggedIn", session.isLoggedIn))
             } catch (e: Exception) {
@@ -343,6 +345,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     fun setCookie(cookie: String, requestId: String) {
         session.set(cookie)
         cookieVault.save(cookie)
+        taskDownloads.updateSessionCookie(cookie)
         respond(requestId, JSONObject().put("ok", true).put("loggedIn", session.isLoggedIn))
     }
 
@@ -359,6 +362,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
                 if (!loggedIn) {
                     session.clear()
                     cookieVault.clear()
+                    taskDownloads.updateSessionCookie(null)
                 }
                 respond(requestId, JSONObject().put("ok", true).put("loggedIn", loggedIn)
                     .put("name", profile.optString("uname")).put("avatar", profile.optString("face"))
