@@ -86,6 +86,7 @@ class MediaProcessingRepository(private val context: Context) {
             throw IOException("MP4 重新封装失败：" + (e.message ?: "设备不支持该编码或容器"), e)
         } finally {
             try { muxer?.release() } catch (_: Exception) {}
+            try { pfd.close() } catch (_: Exception) {}
             extractor.release()
             output.delete()
         }
