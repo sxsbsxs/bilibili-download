@@ -89,7 +89,7 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
   return buildList { for(i in 0 until rows.length()){val x=rows.optJSONObject(i)?:continue;var url=x.optString("subtitle_url").ifBlank{x.optString("url")};if(url.startsWith("//"))url="https:"+url;if(url.startsWith("https://"))add(SubtitleTrack(x.optString("lan_doc").ifBlank{x.optString("lan").ifBlank{"字幕"}},url))} }
  }
  fun danmakuUrl(cid:Long)="https://comment.bilibili.com/"+cid+".xml"
- private fun qualityOptions(d:org.json.JSONObject):List<StreamOption> {
+ fun fetchText(url:String,cookie:String?=null):String {\n  if(!url.startsWith("https://"))throw IOException("只允许下载 HTTPS 资源")\n  return http.getText(url,cookie)\n }\n private fun qualityOptions(d:org.json.JSONObject):List<StreamOption> {
   val ids=d.optJSONArray("accept_quality");val desc=d.optJSONArray("accept_description")
   return buildList { if(ids!=null)for(i in 0 until ids.length()){val id=ids.optInt(i);add(StreamOption(id,desc?.optString(i).orEmpty().ifBlank{"清晰度 "+id}))} }
  }
