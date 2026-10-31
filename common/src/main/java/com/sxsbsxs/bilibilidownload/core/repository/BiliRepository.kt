@@ -114,7 +114,7 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
    "history"->"https://api.bilibili.com/x/web-interface/history/cursor?ps=20&max=0&view_at=0&business="
    "watchlater"->"https://api.bilibili.com/x/v2/history/toview"
    "likes"->"https://api.bilibili.com/x/space/like/arc?vmid="+mid+"&pn="+p+"&ps=20"
-   "uploads"->"https://api.bilibili.com/x/space/arc/search?mid="+mid+"&pn="+p+"&ps=20&order=pubdate"
+   "uploads"->return spaceArchiveSearch(mid,p,cookie)
    else->throw IOException("未知账号内容分类")
   }
   val root=http.getJson(url,cookie)
@@ -124,10 +124,7 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
 
  fun upVideos(mid:Long,page:Int=1,cookie:String?=null):org.json.JSONObject {
   if(mid<=0)throw IOException("UP 主 UID 无效")
-  val url="https://api.bilibili.com/x/space/arc/search?mid="+mid+"&pn="+page.coerceIn(1,100)+"&ps=20&order=pubdate"
-  val root=http.getJson(url,cookie)
-  if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","读取 UP 主投稿失败"))
-  return root.optJSONObject("data")?:throw IOException("UP 主投稿为空")
+  return spaceArchiveSearch(mid,page,cookie)
  }
 
  fun favoriteResources(mediaId:Long,page:Int=1,cookie:String):org.json.JSONObject {
@@ -142,6 +139,27 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
   if(!url.startsWith("https://"))throw IOException("只允许下载 HTTPS 资源")
   return http.getText(url,cookie)
  }
+
+ private fun spaceArchiveSearch(mid:Long,page:Int,cookie:String?):org.json.JSONObject {
+  val nav=http.getJson("https://api.bilibili.com/x/web-interface/nav",cookie)
+  if(nav.optInt("code",-1)!=0)throw IOException(nav.optString("message","读取 WBI 签名参数失败"))
+  val wbi=nav.optJSONObject("data")?.optJSONObject("wbi_img")?:throw IOException("B站没有返回 WBI 签名参数")
+  val imgKey=wbi.optString("img_url").substringAfterLast('/').substringBefore('.')
+  val subKey=wbi.optString("sub_url").substringAfterLast('/').substringBefore('.')
+  if(imgKey.isBlank()||subKey.isBlank())throw IOException("WBI 签名参数不完整")
+  val raw=imgKey+subKey
+  val mixin= intArrayOf(46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52)
+  val key=mixin.mapNotNull{raw.getOrNull(it)}.joinToString("").take(32)
+  val params=sortedMapOf("mid" to mid.toString(),"order" to "pubdate","pn" to page.coerceIn(1,100).toString(),"ps" to "20","web_location" to "1550101","wts" to (System.currentTimeMillis()/1000).toString())
+  val query=params.entries.joinToString("&"){entry->entry.key+"="+URLEncoder.encode(entry.value.replace(Regex("[!'()*]"),""),"UTF-8")}
+  val root=http.getJson("https://api.bilibili.com/x/space/wbi/arc/search?"+query+"&w_rid="+md5(query+key),cookie)
+  if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","读取 UP 主投稿失败"))
+  return root.optJSONObject("data")?:throw IOException("UP 主投稿为空")
+ }
+
+ private fun md5(value:String):String = java.security.MessageDigest.getInstance("MD5")
+  .digest(value.toByteArray(Charsets.UTF_8)).joinToString(""){"%02x".format(it.toInt() and 0xff)}
+
  private fun qualityOptions(d:org.json.JSONObject):List<StreamOption> {
   val ids=d.optJSONArray("accept_quality");val desc=d.optJSONArray("accept_description")
   return buildList { if(ids!=null)for(i in 0 until ids.length()){val id=ids.optInt(i);add(StreamOption(id,desc?.optString(i).orEmpty().ifBlank{"清晰度 "+id}))} }
