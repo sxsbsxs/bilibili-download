@@ -369,27 +369,42 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
         respond(requestId, JSONObject().put("ok", true).put("loggedIn", session.isLoggedIn))
     }
 
+    /** Restore the encrypted session if this bridge was recreated while the app stayed alive. */
+    private fun currentSessionCookie(): String? {
+        val active = session.get()?.takeIf { it.isNotBlank() }
+        if (active != null) return active
+        val saved = cookieVault.load()?.takeIf { it.isNotBlank() } ?: return null
+        session.set(saved)
+        taskDownloads.updateSessionCookie(saved)
+        return saved
+    }
+
+    private fun clearSessionCookie() {
+        session.clear()
+        cookieVault.clear()
+        taskDownloads.updateSessionCookie(null)
+    }
+
     @JavascriptInterface
     fun accountStatus(requestId: String) {
         io.execute {
+            val cookie = currentSessionCookie()
+            if (cookie == null) {
+                respond(requestId, JSONObject().put("ok", true).put("loggedIn", false).put("verified", true))
+                return@execute
+            }
             try {
-                if (!session.isLoggedIn) {
-                    respond(requestId, JSONObject().put("ok", true).put("loggedIn", false))
-                    return@execute
-                }
-                val profile = repository.accountProfile(session.get().orEmpty())
-                val loggedIn = profile.optBoolean("isLogin", true)
-                if (!loggedIn) {
-                    session.clear()
-                    cookieVault.clear()
-                    taskDownloads.updateSessionCookie(null)
-                }
-                respond(requestId, JSONObject().put("ok", true).put("loggedIn", loggedIn)
+                val profile = repository.accountProfile(cookie)
+                // Never treat a non-empty Cookie string as proof of a valid Bilibili login.
+                val loggedIn = profile.optBoolean("isLogin", false)
+                if (!loggedIn) clearSessionCookie()
+                respond(requestId, JSONObject().put("ok", true).put("loggedIn", loggedIn).put("verified", true)
                     .put("name", profile.optString("uname")).put("avatar", profile.optString("face"))
                     .put("mid", profile.optLong("mid")))
             } catch (e: Exception) {
-                respond(requestId, JSONObject().put("ok", true).put("loggedIn", session.isLoggedIn)
-                    .put("error", e.message ?: "读取账号信息失败"))
+                // Network/API failure is an unknown state, not a successful login.
+                respond(requestId, JSONObject().put("ok", true).put("loggedIn", false).put("verified", false)
+                    .put("hasSavedSession", true).put("error", e.message ?: "暂时无法验证登录状态"))
             }
         }
     }
@@ -398,10 +413,21 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     fun searchContent(keyword: String, kind: String, page: Int, requestId: String) {
         io.execute {
             try {
-                val data = repository.searchContent(keyword, kind, page, session.get())
-                respond(requestId, JSONObject().put("ok", true).put("data", data).put("kind", kind))
+                // Always read the same restored session source used by accountStatus.
+                val cookie = currentSessionCookie()
+                val data = repository.searchContent(keyword, kind, page, cookie)
+                respond(requestId, JSONObject().put("ok", true).put("data", data).put("kind", kind)
+                    .put("loginUsed", !cookie.isNullOrBlank()))
             } catch (e: Exception) {
-                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "搜索失败"))
+                val message = e.message ?: "搜索失败"
+                // Do not misreport every API rejection as a login problem.
+                val friendly = when {
+                    message.contains("-101") || message.contains("账号未登录") || message.contains("未登录") ->
+                        "B站搜索接口认为当前登录凭据无效。请重新登录后再试；如果账号页仍显示已登录，请把这条提示发给我。"
+                    message.contains("-412") -> "B站风控暂时拦截了搜索请求，请稍后重试"
+                    else -> message
+                }
+                respond(requestId, JSONObject().put("ok", false).put("error", friendly))
             }
         }
     }
