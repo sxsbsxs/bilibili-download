@@ -1,41 +1,34 @@
-# Bilibili Download
+# BiliDownload
 
-Kotlin + Jetpack Compose Android downloader. This is a clean-room rebuild. BVD is an architectural reference only; no BVD business implementation or old BiliDownload-KT business source is copied.
+An independent Android Bilibili video downloader. The app uses a WebView-based HTML/CSS/JavaScript interface and Kotlin for Android integration, Bilibili API access, and system download tasks.
 
-## BVD-inspired project layout
+## UI and architecture
 
-```
-app/                         Android entry point
-common/
-  core/
-    model/                   Video, page, stream and task models
-    parser/                  BV / AV / URL identifier parsing
-    network/                 OkHttp transport and request headers
-    repository/              Video metadata, pages and stream lookup
-    download/                Android DownloadManager adapter
-    security/                In-memory cookie session boundary
-feature/
-  home/                      Compose parsing, page/quality selection and detail UI
-service/
-  download/                  Download orchestration boundary
-notification/                Download notification channel
-```
+- HTML structure: `app/src/main/assets/web/index.html`
+- CSS design system and themes: `app/src/main/assets/web/css/app.css`
+- JavaScript navigation and interaction: `app/src/main/assets/web/js/app.js`
+- Kotlin WebView host and asynchronous bridge: `MainActivity.kt` and `bridge/WebBridge.kt`
+- API parsing, cookie session, and Android DownloadManager: `:common`
 
-## Current capabilities
-- Parse BV IDs, AV IDs and Bilibili video URLs.
-- Fetch video metadata and multi-part (P) lists.
-- Read the quality options returned by Bilibili and request a selected quality.
-- Queue supported progressive streams through Android DownloadManager.
-- Refresh and remove current-session download tasks.
-- Keep cookie handling behind an in-memory session boundary; raw cookies are not persisted.
+## Implemented
 
-## Limitations / next work
-- DASH audio/video streams are detected but not muxed yet; a proper FFmpeg/Media3 mux pipeline is next.
-- Download task persistence/history and background orchestration need expansion.
-- Official Bilibili App authorization handoff and callback are not connected yet.
-- Collections, bangumi, subtitles, danmaku, GIF and batch download remain future features.
+- Parse public BV IDs, AV IDs, and Bilibili video URLs.
+- Read video metadata and multi-part (P) information.
+- Query progressive-stream quality options when returned by the API.
+- Request a selected quality and enqueue it with Android DownloadManager.
+- View, refresh, and remove app-created download tasks.
+- Optional in-memory Cookie session for account-dependent API access.
+- Responsive HTML interface with light/dark appearance settings.
 
-Quality availability depends on the current visitor/account. No DRM, paywall, region or account-entitlement bypass is implemented.
+## Not implemented yet
+
+- DASH video/audio merging.
+- Bilibili QR-code login and account profile/favorites/history synchronization.
+- Subtitle and danmaku export.
+- Local media indexing and in-app playback.
+
+Quality availability is controlled by Bilibili, account permissions, region, and API responses. The app does not bypass VIP, DRM, or other access controls. Cookie credentials are memory-only and cleared when the app process exits.
 
 ## Build
-GitHub Actions uses JDK 17, Gradle 8.9, AGP 8.7.3, Kotlin 2.0.21 and compileSdk 35.
+
+GitHub Actions runs unit tests and creates a debug APK with Gradle and Java 17.

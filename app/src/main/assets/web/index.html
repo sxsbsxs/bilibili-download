@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#fafafc"><title>BiliDownload</title><link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app-shell">
+<header class="topbar"><div class="brand"><div class="brand-mark">B</div><div><strong>BiliDownload</strong><small>VIDEO DOWNLOADER</small></div></div><button class="avatar" data-page="account">访</button></header>
+<main>
+<section class="page active" id="page-home">
+<div class="eyebrow"><span class="live-dot"></span> PERSONAL VIDEO TOOLKIT</div>
+<h1>把喜欢的视频<br><em>保存下来。</em></h1><p class="lead">粘贴 B 站视频链接，解析并选择你有权限获取的清晰度。</p>
+<div class="input-card"><label for="video-input">视频链接 / BV 号 / AV 号</label><div class="input-row"><input id="video-input" autocomplete="off" placeholder="https://www.bilibili.com/video/BV..." /><button id="paste-btn" class="icon-btn">▣</button></div><button id="parse-btn" class="primary-btn"><span>解析视频</span><b>→</b></button><div class="input-hint">支持 BV、AV、视频分享链接</div></div>
+<div id="error-box" class="notice error hidden"></div>
+<div id="result" class="result-card hidden"><div class="video-head"><img id="cover" alt="视频封面"><div class="video-meta"><span class="tag">解析成功</span><h2 id="video-title"></h2><p id="video-owner"></p><small id="video-ids"></small></div></div><p id="video-desc" class="video-desc"></p><div class="field-group"><label>分 P 选择</label><select id="page-select"></select></div><div class="field-group"><label>视频清晰度</label><div id="quality-list" class="quality-list"></div><small id="quality-hint" class="muted"></small></div><button id="download-btn" class="primary-btn"><span>加入下载队列</span><b>↓</b></button></div>
+<div class="section-heading"><div><small>FEATURES</small><h2>轻量 · 清晰 · 可控</h2></div></div>
+<div class="feature-grid"><article><span class="feature-icon">↗</span><b>链接解析</b><small>BV / AV 视频识别</small></article><article><span class="feature-icon">▤</span><b>任务管理</b><small>查看下载进度</small></article><article><span class="feature-icon">◈</span><b>本地保存</b><small>系统下载目录</small></article></div>
+<div class="footnote">下载能力受 B 站接口、登录状态、会员权限及地区限制。请仅下载你有权保存的内容。</div>
+</section>
+<section class="page" id="page-downloads"><div class="page-title"><small>DOWNLOAD CENTER</small><h1>下载任务</h1><p>任务由 Android 系统下载服务执行。</p></div><div class="toolbar"><span id="task-count">0 个任务</span><button id="refresh-btn" class="soft-btn">↻ 刷新</button></div><div id="task-list" class="task-list"><div class="empty-state"><span>⇩</span><b>还没有下载任务</b><small>解析视频后，加入下载队列即可在这里查看。</small></div></div></section>
+<section class="page" id="page-resources"><div class="page-title"><small>LOCAL LIBRARY</small><h1>本地资源</h1><p>管理已经保存到设备的视频与文件。</p></div><div class="resource-panel"><div class="resource-symbol">▧</div><h2>设备文件夹</h2><p>下载完成的文件保存在系统的 Download/BilibiliDownload 目录。</p><div class="path-chip">Download / BilibiliDownload</div><small class="muted">当前版本使用 Android 系统下载管理器；应用内媒体扫描与分类浏览正在接入。</small></div></section>
+<section class="page" id="page-account"><div class="page-title"><small>ACCOUNT & ACCESS</small><h1>账号与权限</h1><p>游客模式可解析公开内容；登录状态可能影响可用清晰度。</p></div><div class="account-card"><div class="account-avatar">B</div><div><b id="account-label">游客模式</b><small id="account-subtitle">尚未在本应用设置登录凭据</small></div><span class="status-pill" id="account-status">游客</span></div><div class="settings-card"><h3>Cookie 登录凭据</h3><p>粘贴从你自己的 B 站登录会话中获取的 Cookie。凭据仅保存在本次应用运行内存中，退出应用后清除。</p><textarea id="cookie-input" rows="4" placeholder="SESSDATA=...; bili_jct=..."></textarea><button id="save-cookie" class="primary-btn"><span>保存本次会话</span><b>✓</b></button><button id="clear-cookie" class="text-btn">清除登录凭据</button><small class="muted">请勿把 Cookie 分享给任何人。扫码登录和账号资料同步尚未接入。</small></div></section>
+<section class="page" id="page-settings"><div class="page-title"><small>PREFERENCES</small><h1>设置</h1><p>管理应用显示和下载体验。</p></div><div class="settings-card"><div class="setting-row"><div><b>外观主题</b><small>切换浅色或深色界面</small></div><select id="theme-select"><option value="light">浅色</option><option value="dark">深色</option><option value="system">跟随系统（浅色）</option></select></div><div class="setting-row"><div><b>默认下载位置</b><small>Android 系统 Download 目录</small></div><span class="muted">系统管理</span></div><div class="setting-row"><div><b>版本</b><small>BiliDownload · Web UI</small></div><span class="muted">0.4.0</span></div></div><div class="footnote">本应用为独立第三方工具，与哔哩哔哩官方无隶属关系。</div></section>
+</main>
+<nav class="bottom-nav"><button class="nav-item selected" data-page="home"><span>⌂</span><small>解析</small></button><button class="nav-item" data-page="downloads"><span>⇩</span><small>下载</small></button><button class="nav-item" data-page="resources"><span>▧</span><small>资源</small></button><button class="nav-item" data-page="account"><span>◉</span><small>我的</small></button><button class="nav-item" data-page="settings"><span>⚙</span><small>设置</small></button></nav>
+</div><div id="toast" class="toast"></div><script src="js/app.js"></script>
+</body></html>
