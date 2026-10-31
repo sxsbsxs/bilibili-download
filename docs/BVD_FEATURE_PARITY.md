@@ -14,7 +14,7 @@ Legend:
 ## 1. Parsing and search
 
 - [~] BV / AV / video URL parsing: parser and video detail API exist.
-- [ ] EP / SS bangumi and media parsing.
+- [~] EP / SS bangumi parsing: season/episode API lookup and episode list are connected; share-link variants still need real-world coverage.
 - [ ] Bilibili share-link short URL resolution.
 - [ ] Global video search.
 - [ ] Bangumi / film search.
@@ -27,8 +27,8 @@ Legend:
 - [x] Video metadata: title, description, cover, owner, duration, aid, bvid.
 - [x] Multi-P metadata and selected P.
 - [~] Re-query progressive quality list when selected P changes.
-- [ ] Bangumi episode / season details and episode lists.
-- [ ] Batch select and enqueue multiple parts.
+- [~] Bangumi season metadata and episode lists; section episodes are included when returned by the API.
+- [~] Batch-select bangumi episodes and enqueue each selected episode as an independent app-owned task; per-episode quality override is available.
 
 ## 3. Login and account
 
@@ -100,10 +100,22 @@ Important limitations: task URLs are encrypted with Android Keystore, but Cookie
 
 1. Improve the current DASH pipeline: codec compatibility, FFmpeg fallback, stream URL refresh, and real-device validation.
 2. Finish task engine parity: batch actions, foreground/background service integration, notifications, queue controls, and robust recovery.
-3. Bangumi EP/SS resolution and batch episode download.
+3. Expand EP/SS coverage, improve batch quality policy, and test real season/episode responses.
 4. QR login with QR image, clickable confirmation URL, polling, and secure session handling.
 5. Correct SRT and CSV export.
 6. Account content and search.
 7. Local resource library, video/audio players, media conversion, and remaining settings.
 
 Do not mark an item complete until its Kotlin implementation, UI connection, and a meaningful test/build path exist.
+
+
+## 9. Bangumi and batch episode downloads (2026-10-31)
+
+- [~] EP and SS identifiers are parsed from plain IDs and standard bangumi play URLs.
+- [~] Season metadata and episode lists are loaded from the PGC season API, including returned section episodes.
+- [~] Episode checkboxes, select-all/select-none, and per-episode quality selection are wired to Kotlin.
+- [~] Batch requests resolve each selected episode independently and enqueue successful streams into the app-owned task coordinator; failures are reported per episode.
+- [ ] Automatic refresh of season/episode metadata after API schema changes.
+- [ ] Real-account verification for restricted episodes, region-limited content, and season section pagination.
+
+The batch UI defaults each episode to "automatic highest available" and lets the user request the episode's quality list individually. A selected quality is resolved at enqueue time; permissions and available quality remain controlled by the Bilibili API.
