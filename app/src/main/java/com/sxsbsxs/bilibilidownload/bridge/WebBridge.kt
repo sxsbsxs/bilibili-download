@@ -414,7 +414,21 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
         io.execute {
             try {
                 // Always read the same restored session source used by accountStatus.
-                val cookie = currentSessionCookie()
+                var cookie = currentSessionCookie()
+                // A stale SESSDATA must not poison public keyword search. Verify it first;
+                // if Bilibili rejects the session, clear it and continue as a guest.
+                if (!cookie.isNullOrBlank()) {
+                    try {
+                        val profile = repository.accountProfile(cookie!!)
+                        if (!profile.optBoolean("isLogin", false)) {
+                            clearSessionCookie()
+                            cookie = null
+                        }
+                    } catch (_: Exception) {
+                        // Keep the session for the actual search request; transient nav failures
+                        // should not silently log the user out.
+                    }
+                }
                 val data = repository.searchContent(keyword, kind, page, cookie)
                 respond(requestId, JSONObject().put("ok", true).put("data", data).put("kind", kind)
                     .put("loginUsed", !cookie.isNullOrBlank()))
