@@ -38,8 +38,8 @@ class BiliHttpClient {
         .retryOnConnectionFailure(true)
         .build()
 
-    fun ensureWebCookies(cookie: String? = null) {
-        if (cookieJar.loadForRequest("https://www.bilibili.com/".toHttpUrl()).none { it.name == "buvid3" }) {
+    fun ensureWebCookies(cookie: String? = null, force: Boolean = false) {
+        if (force || cookieJar.loadForRequest("https://www.bilibili.com/".toHttpUrl()).none { it.name == "buvid3" }) {
             getText("https://www.bilibili.com/", cookie)
         }
     }
