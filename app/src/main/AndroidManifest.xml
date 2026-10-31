@@ -1,6 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
- <uses-permission android:name="android.permission.INTERNET"/>
- <application android:allowBackup="false" android:label="Bilibili Download" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:supportsRtl="true">
-  <activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
- </application>
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <application android:allowBackup="false" android:label="BiliDownload"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:supportsRtl="true" android:usesCleartextTraffic="false">
+        <activity android:name=".PlayerActivity" android:exported="false" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout" android:supportsPictureInPicture="true" />
+        <service android:name=".PlaybackService" android:exported="true" android:foregroundServiceType="mediaPlayback">
+            <intent-filter><action android:name="androidx.media3.session.MediaSessionService" /></intent-filter>
+        </service>
+        <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+        </activity>
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true"><meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" /></provider>
+        <service android:name=".DownloadForegroundService" android:exported="false" android:foregroundServiceType="dataSync" />
+    </application>
 </manifest>

@@ -1,41 +1,44 @@
-# Bilibili Download
+# BiliDownload
 
-Kotlin + Jetpack Compose Android downloader. This is a clean-room rebuild. BVD is an architectural reference only; no BVD business implementation or old BiliDownload-KT business source is copied.
+An independent Android Bilibili downloader. The Android host and download engine are Kotlin; the application UI is local HTML/CSS/JavaScript rendered in WebView.
 
-## BVD-inspired project layout
+## UI and architecture
 
-```
-app/                         Android entry point
-common/
-  core/
-    model/                   Video, page, stream and task models
-    parser/                  BV / AV / URL identifier parsing
-    network/                 OkHttp transport and request headers
-    repository/              Video metadata, pages and stream lookup
-    download/                Android DownloadManager adapter
-    security/                In-memory cookie session boundary
-feature/
-  home/                      Compose parsing, page/quality selection and detail UI
-service/
-  download/                  Download orchestration boundary
-notification/                Download notification channel
-```
+- HTML: `app/src/main/assets/web/index.html`
+- CSS: `app/src/main/assets/web/css/app.css`
+- JavaScript: `app/src/main/assets/web/js/app.js`
+- Native bridge: `app/src/main/java/com/sxsbsxs/bilibilidownload/bridge/WebBridge.kt`
+- Bilibili API and models: `:common`
+- Download coordinator: `DownloadTaskCoordinator.kt`
+- Background execution: `DownloadForegroundService.kt`
 
-## Current capabilities
-- Parse BV IDs, AV IDs and Bilibili video URLs.
-- Fetch video metadata and multi-part (P) lists.
-- Read the quality options returned by Bilibili and request a selected quality.
-- Queue supported progressive streams through Android DownloadManager.
-- Refresh and remove current-session download tasks.
-- Keep cookie handling behind an in-memory session boundary; raw cookies are not persisted.
+## Implemented
 
-## Limitations / next work
-- DASH audio/video streams are detected but not muxed yet; a proper FFmpeg/Media3 mux pipeline is next.
-- Download task persistence/history and background orchestration need expansion.
-- Official Bilibili App authorization handoff and callback are not connected yet.
-- Collections, bangumi, subtitles, danmaku, GIF and batch download remain future features.
+- Parse BV / AV / video URL and EP / SS bangumi identifiers.
+- Read video details, cover, uploader, multi-P parts, stream qualities and DASH tracks when Bilibili returns them.
+- Select individual bangumi episodes and enqueue them as separate tasks with per-episode quality selection.
+- Download progressive or DASH streams through the app-owned task coordinator; DASH tracks are muxed with Android MediaExtractor / MediaMuxer.
+- Persist task state, pause / resume / retry / remove tasks, recover interrupted tasks, validate HTTP Range responses and attempt one expired-stream refresh.
+- Run app-owned downloads through a foreground data-sync service with an ongoing notification; task UI supports status filters and batch pause / resume / remove.
+- Sign in by generating a Bilibili QR code locally and polling the official passport QR-login endpoint. Scan with the Bilibili APP and confirm in the APP.
+- Encrypt the login Cookie with AES-GCM using an Android Keystore key. Logout clears the stored credential; task URLs and task metadata use separate encrypted storage.
+- Search Bilibili videos, bangumi/media and UP accounts with pagination; local search history is stored on-device. UP search results can load public submission lists.
+- Account center: created favorite folders and their resources, watch history, watch-later, recent likes and own submissions (login required; favorite folders/resources, likes and uploads support paging; API coverage still needs real-account validation).
+- Local resource library: scan the configured Download subfolder, filter videos/audio/subtitles/data, play media in-app with Media3, inspect metadata, extract existing AAC tracks to M4A, remux supported tracks to MP4, open externally, share/export and delete files.
+- Convert Bilibili subtitle JSON to SRT and danmaku XML to CSV, then save the files to the configured Download subfolder on Android 10+.
+- Media processing: inspect metadata, extract AAC audio losslessly when available, use FFmpeg to extract/transcode audio to M4A, remux supported tracks, or transcode media to MP4 (MPEG-4 video + AAC).
+- Light / dark WebView UI with persisted download subfolder, filename template, quality preference, intermediate-stream retention and picture-in-picture settings.
 
-Quality availability depends on the current visitor/account. No DRM, paywall, region or account-entitlement bypass is implemented.
+## Known limitations
+
+- Bilibili controls available quality, codecs, region access and account permissions. The app does not bypass VIP, DRM or other access controls.
+- HTTP Range resume depends on the Bilibili CDN. If a CDN ignores Range or returns a different resource validator, the affected partial stream is restarted safely.
+- DASH muxing uses Android MediaMuxer, not FFmpeg; codec/container support varies by device.
+- Batch pause / resume applies to app-owned tasks. Legacy Android DownloadManager tasks can be removed but cannot be paused or resumed through this app UI.
+- QR login, Cookie persistence, background service and media exports are implemented in code but still require real-device and real-account validation.
+- Advanced FFmpeg codec profiles, GPU acceleration, broad output-container selection, playlists, audio spectrum, arbitrary SAF destination selection and automatic post-download processing are not implemented. Media3 playback and FFmpeg/MediaExtractor processing still need real-device codec and background-playback validation.
+- The maintained FFmpegKit LGPL AAR requires Android 7.0 (API 24) or newer and ships arm64-v8a / x86_64 native libraries. See THIRD_PARTY_NOTICES.md.
 
 ## Build
-GitHub Actions uses JDK 17, Gradle 8.9, AGP 8.7.3, Kotlin 2.0.21 and compileSdk 35.
+
+GitHub Actions builds the debug APK with Gradle and Java 17. A successful CI build verifies compilation, not real-device playback, account login or CDN behavior.

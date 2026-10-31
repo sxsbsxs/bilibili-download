@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#fafafc"><title>BiliDownload</title><link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app-shell">
+
+<main>
+<section class="page active" id="page-home">
+
+<h1 class="home-title">B站视频下载</h1>
+<div class="input-card"><label for="video-input">搜索或粘贴视频链接</label><div class="input-row"><input id="video-input" autocomplete="off" placeholder="关键词 / BV号 / AV号 / 视频链接" /><button id="paste-btn" class="icon-btn">▣</button></div><button id="parse-btn" class="primary-btn"><span>搜索 / 解析</span><b>→</b></button></div>
+<div id="error-box" class="notice error hidden"></div><div id="home-search-results" class="home-search-results hidden"><div class="toolbar"><span id="search-summary">搜索结果</span><button id="search-more" class="soft-btn hidden">下一页</button></div><div id="search-results" class="content-list"></div><div id="up-videos" class="content-list"></div></div>
+<div id="result" class="result-card hidden"><div class="video-head"><img id="cover" alt="视频封面"><div class="video-meta"><span class="tag">解析成功</span><h2 id="video-title"></h2><p id="video-owner"></p><small id="video-ids"></small></div></div><p id="video-desc" class="video-desc"></p><div class="field-group"><label>分 P 选择</label><select id="page-select"></select></div><div class="field-group"><label>视频清晰度</label><div id="quality-list" class="quality-list"></div><small id="quality-hint" class="muted"></small></div><button id="download-btn" class="primary-btn"><span>加入下载队列</span><b>↓</b></button><div class="extra-actions"><button id="subtitle-btn" class="soft-btn">获取字幕</button><button id="danmaku-btn" class="soft-btn">导出弹幕 CSV</button></div><div id="subtitle-list" class="subtitle-list"></div></div>
+<div id="bangumi-result" class="result-card hidden">
+ <div class="video-head"><img id="bangumi-cover" alt="番剧封面"><div class="video-meta"><span class="tag">番剧解析成功</span><h2 id="bangumi-title"></h2><p id="bangumi-meta"></p><small id="bangumi-count"></small></div></div>
+ <div class="episode-toolbar"><button id="episode-select-all" class="soft-btn">全选</button><button id="episode-select-none" class="soft-btn">全不选</button><span id="episode-selected-count">已选 0 集</span></div>
+ <div id="episode-list" class="episode-list"></div>
+ <p class="muted">每集可单独选择清晰度。保持“自动最高”时，加入队列时会按该集当前可用的最高清晰度解析。</p>
+ <button id="download-episodes-btn" class="primary-btn"><span>批量加入下载队列</span><b>↓</b></button>
+ <div id="bangumi-download-result" class="notice hidden"></div>
+</div>
+<div class="footnote">仅保存你有权下载的内容。</div>
+</section>
+<section class="page" id="page-search" aria-hidden="true"><input id="search-input" type="hidden"><button id="search-submit" class="hidden" type="button"><span>搜索</span><b>⌕</b></button><button id="search-clear" class="hidden" type="button"></button><div id="search-history" class="hidden"></div></section>
+<section class="page" id="page-downloads"><div class="page-title"><h1>下载任务</h1><button class="soft-btn" type="button" onclick="showPage(&quot;account&quot;)">返回我的</button></div><div class="toolbar"><span id="task-count">0 个任务</span><select id="task-filter" aria-label="任务筛选"><option value="all">全部任务</option><option value="active">进行中</option><option value="paused">已暂停</option><option value="failed">失败</option><option value="done">已完成</option></select><button id="refresh-btn" class="soft-btn">↻ 刷新</button></div>
+<div class="bulk-toolbar"><label><input type="checkbox" id="task-select-all"> 全选当前列表</label><span id="task-selected-count">已选 0 项</span></div>
+<div class="bulk-actions"><button class="soft-btn" data-bulk-action="pause">批量暂停</button><button class="soft-btn" data-bulk-action="resume">批量继续</button><button class="soft-btn" data-bulk-action="remove">批量删除</button></div><div id="task-list" class="task-list"><div class="empty-state"><span>⇩</span><b>还没有下载任务</b><small>解析视频后，加入下载队列即可在这里查看。</small></div></div></section>
+<section class="page" id="page-resources"><div class="page-title"><h1>本地资源</h1></div><div class="toolbar"><span id="resource-count">尚未扫描</span><select id="resource-filter"><option value="all">全部类型</option><option value="视频">视频</option><option value="音频">音频</option><option value="字幕">字幕</option><option value="数据">数据</option><option value="其他">其他</option></select><button id="resource-refresh" class="soft-btn">↻ 扫描</button></div><div id="resource-list" class="content-list"><div class="empty-state"><span>▧</span><b>本地资源尚未扫描</b><small>点击右上角扫描下载目录。</small></div></div></section>
+<section class="page" id="page-account"><div class="page-title"><h1>我的</h1></div><div class="account-card"><div class="account-avatar">B</div><div><b id="account-label">游客模式</b><small id="account-subtitle">尚未在本应用设置登录凭据</small></div><span class="status-pill" id="account-status">游客</span></div><button class="soft-btn" data-page="downloads" type="button">查看下载任务</button><div class="settings-card"><h3>扫码登录</h3><p>扫码登录 B 站账号</p><div class="qr-login-panel"><img id="login-qr" alt="B站登录二维码" class="hidden"><div id="qr-placeholder">进入账号页后自动生成登录二维码</div></div><p id="qr-status" class="qr-status">等待扫码</p><button id="open-bili-login" class="qr-link" type="button">打开哔哩哔哩登录</button><button id="start-qr-login" class="soft-btn">刷新二维码</button><button id="clear-cookie" class="text-btn">退出登录</button><small class="muted">登录 Cookie 使用 Android Keystore 加密保存；退出登录会清除凭据。</small></div>
+<div class="settings-card account-content-card removed-feature"><h3>我的 B 站内容</h3><p>登录后查看收藏夹、观看历史、稍后再看、最近点赞和个人投稿。</p><div class="account-tabs"><button class="account-tab selected" data-account-section="favorites">收藏夹</button><button class="account-tab" data-account-section="history">观看历史</button><button class="account-tab" data-account-section="watchlater">稍后再看</button><button class="account-tab" data-account-section="likes">最近点赞</button><button class="account-tab" data-account-section="uploads">我的投稿</button></div><select id="favorite-folder" class="full-select hidden"><option value="">选择收藏夹</option></select><div class="toolbar"><span id="account-content-summary">选择分类加载内容</span><div class="extra-actions"><button id="account-content-refresh" class="soft-btn">刷新</button><button id="account-content-more" class="soft-btn hidden">下一页</button></div></div><div id="account-content-list" class="content-list"><div class="empty-state"><span>◉</span><b>尚未加载账号内容</b><small>请先登录，再选择上方分类。</small></div></div></div>
+<div class="settings-card removed-feature"><h3>手动 Cookie（备用）</h3><p>仅在扫码登录不可用时使用。请勿把 Cookie 分享给任何人。</p><textarea id="cookie-input" rows="3" placeholder="SESSDATA=...; bili_jct=..."></textarea><button id="save-cookie" class="soft-btn">使用手动 Cookie</button></div></section>
+<section class="page" id="page-settings"><div class="page-title"><h1>设置</h1></div>
+<div class="settings-card"><h3>下载管理</h3>
+<div class="setting-row"><div><b>外观主题</b><small>切换浅色或深色界面</small></div><select id="theme-select"><option value="light">浅色</option><option value="dark">深色</option><option value="system">跟随系统</option></select></div>
+<label class="setting-field"><b>下载子目录</b><input id="download-folder" maxlength="48" value="BilibiliDownload" placeholder="BilibiliDownload"><small>保存到 Download/这里填写的目录；只填写文件夹名称。</small></label>
+<label class="setting-field"><b>文件命名模板</b><input id="filename-template" maxlength="100" value="{title}" placeholder="{title}"><small>可用变量：{title} 视频标题、{bvid} BV 号、{quality} 清晰度。</small></label>
+<label class="setting-field"><b>默认清晰度策略</b><select id="quality-policy"><option value="highest">优先最高可用</option><option value="1080p">优先 1080P 或更低</option><option value="720p">优先 720P 或更低</option></select></label>
+<label class="setting-check"><input type="checkbox" id="keep-source-tracks"><span><b>合并后保留源音视频流</b><small>保留在应用缓存中，方便排查合并问题，会占用额外空间。</small></span></label>
+</div>
+<div class="settings-card"><h3>播放器</h3><label class="setting-check"><input type="checkbox" id="pip-enabled" checked><span><b>允许画中画</b><small>视频播放时离开播放器页面可进入悬浮小窗。</small></span></label><p class="muted">音频由 Android Media3 会话服务播放，关闭播放器页面后可继续播放。</p></div>
+<button id="save-settings" class="primary-btn"><span>保存设置</span><b>✓</b></button>
+<div class="settings-card"><div class="setting-row"><div><b>版本</b><small>BiliDownload · Web UI</small></div><span class="muted">0.7.0</span></div></div>
+<div class="footnote">本应用为独立第三方工具，与哔哩哔哩官方无隶属关系。媒体处理仅作用于本地文件；FFmpeg 转码会重新编码音视频，不会绕过 DRM 或访问权限。</div></section>
+</main>
+<nav class="bottom-nav"><button class="nav-item selected" data-page="home"><span>⌂</span><small>首页</small></button><button class="nav-item" data-page="account"><span>◉</span><small>我的</small></button></nav>
+</div><div id="toast" class="toast"></div><script src="js/app.js"></script>
+</body></html>
