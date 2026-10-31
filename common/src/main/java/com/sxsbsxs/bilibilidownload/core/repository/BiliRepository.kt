@@ -35,7 +35,7 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
    val vu=vrow.optString("baseUrl").ifBlank{vrow.optString("base_url")}
    val au=arow?.optString("baseUrl")?.ifBlank{arow.optString("base_url")}
    if(vu.isBlank()||au.isNullOrBlank())throw IOException("B站没有返回完整的 DASH 音视频流")
-   return options to DashStreamInfo(vu,au,q,label,vrow.optString("codecs"),arow.optString("codecs"),true)
+   return options to DashStreamInfo(vu,au,q,label,vrow.optString("codecs"),arow?.optString("codecs").orEmpty(),true)
   }
   val durl=d.optJSONArray("durl")
   if(durl!=null&&durl.length()>0)return options to DashStreamInfo(durl.getJSONObject(0).optString("url"),null,q,label,isDash=false)
