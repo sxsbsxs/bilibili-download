@@ -149,7 +149,7 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
   if(imgKey.isBlank()||subKey.isBlank())throw IOException("WBI 签名参数不完整")
   val raw=imgKey+subKey
   val mixin= intArrayOf(46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52)
-  val key=mixin.mapNotNull{raw.getOrNull(it)}.joinToString("").take(32)
+  val key=mixin.map{raw[it]}.joinToString("").take(32)
   val params=sortedMapOf("mid" to mid.toString(),"order" to "pubdate","pn" to page.coerceIn(1,100).toString(),"ps" to "20","web_location" to "1550101","wts" to (System.currentTimeMillis()/1000).toString())
   val query=params.entries.joinToString("&"){entry->entry.key+"="+URLEncoder.encode(entry.value.replace(Regex("[!'()*]"),""),"UTF-8")}
   val root=http.getJson("https://api.bilibili.com/x/space/wbi/arc/search?"+query+"&w_rid="+md5(query+key),cookie)
