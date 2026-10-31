@@ -37,11 +37,11 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
                         .put("cid", video.cid).put("title", video.title).put("description", video.description)
                         .put("duration", video.duration).put("owner", video.owner).put("cover", video.cover).put("pages", pages))
                 try {
-                    val data = repository.streams(video, null, session.get())
+                    val data = repository.dashStreams(video, null, session.get())
                     val rows = JSONArray().apply {
                         data.first.forEach { q -> put(JSONObject().put("quality", q.quality).put("description", q.description).put("available", q.available)) }
                     }
-                    result.put("qualities", rows).put("defaultQuality", data.second.quality).put("streamMessage", "")
+                    result.put("qualities", rows).put("defaultQuality", data.second.quality).put("streamMessage", if (data.second.isDash) "已识别 DASH 独立音视频流" else "该视频返回渐进式 MP4 流").put("streamMode", if (data.second.isDash) "dash" else "progressive")
                 } catch (e: Exception) {
                     result.put("qualities", JSONArray()).put("defaultQuality", 0).put("streamMessage", e.message ?: "暂时无法获取视频流")
                 }
@@ -58,8 +58,9 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
             try {
                 val video = videos[token] ?: throw IllegalStateException("视频信息已过期，请重新解析")
                 val page = video.pages.firstOrNull { it.cid == cid }
-                val stream = repository.streamAtQuality(video, quality, page, session.get())
-                val id = downloads.enqueue(stream.url, title)
+                val stream = repository.dashStreamAtQuality(video, quality, page, session.get())
+                if (stream.isDash) throw IllegalStateException("已取得 DASH 音视频地址；音视频合并下载器正在接入，当前暂不创建不完整文件")
+                val id = downloads.enqueue(stream.videoUrl, title)
                 rememberDownload(id)
                 respond(requestId, JSONObject().put("ok", true).put("id", id).put("quality", stream.quality).put("description", stream.description))
             } catch (e: Exception) {
@@ -75,12 +76,12 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
             try {
                 val video = videos[token] ?: throw IllegalStateException("视频信息已过期，请重新解析")
                 val page = video.pages.firstOrNull { it.cid == cid }
-                val data = repository.streams(video, page, session.get())
+                val data = repository.dashStreams(video, page, session.get())
                 val rows = JSONArray().apply {
                     data.first.forEach { q -> put(JSONObject().put("quality", q.quality).put("description", q.description)) }
                 }
                 respond(requestId, JSONObject().put("ok", true).put("qualities", rows)
-                    .put("defaultQuality", data.second.quality).put("streamMessage", ""))
+                    .put("defaultQuality", data.second.quality).put("streamMessage", if (data.second.isDash) "当前分 P 返回 DASH 音视频流" else "当前分 P 返回渐进式 MP4 流"))
             } catch (e: Exception) {
                 respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "清晰度读取失败"))
             }
