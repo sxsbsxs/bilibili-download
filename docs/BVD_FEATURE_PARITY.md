@@ -32,11 +32,12 @@ Legend:
 
 ## 3. Login and account
 
-- [~] Manual Cookie entry into an in-memory session.
-- [ ] QR-code login generation and polling.
-- [ ] Blue "或者点击此处" link opening the QR login confirmation URL.
-- [ ] Persisted authenticated session / secure Cookie storage.
-- [ ] Account profile and logout UI.
+- [~] Manual Cookie entry remains as a fallback.
+- [~] QR-code generation uses ZXing locally; the QR payload is never sent to a third-party QR image service.
+- [~] Official passport QR polling handles waiting, scanned/awaiting confirmation, expired and successful states.
+- [~] Successful QR login extracts the Bilibili session Cookie and stores it with AES-GCM under an Android Keystore key; logout clears the encrypted credential.
+- [~] Account page queries the authenticated navigation/profile endpoint and displays the account name / UID.
+- [ ] Favorites, watch history, watch-later, recent likes, personal uploads.
 - [ ] Password login.
 - [ ] Favorites, watch history, watch-later, recent likes, personal uploads.
 
@@ -48,6 +49,8 @@ Legend:
 - [~] Android MediaExtractor / MediaMuxer audio-video MP4 muxing; codec/container compatibility is device-dependent.
 - [~] Quality list and selected-quality requests; 4K/8K/HDR/Dolby/AV1 availability still depends on B站 API response, account rights, source encoding and device support.
 - [~] App-owned task lifecycle: encrypted task metadata, progress, pause/resume/retry, process recovery, removal, bounded network retries, and one automatic signed-URL refresh attempt when video identity metadata is available.
+- [~] Foreground data-sync service with an ongoing notification keeps the shared coordinator alive while the WebView activity is backgrounded; active tasks are restored by the service after process recreation.
+- [~] Task list status filters and multi-select batch pause / resume / remove. Pause/resume is supported for app-owned tasks; legacy DownloadManager tasks can only be removed.
 - [ ] Batch download and quality-mismatch policy.
 - [~] Completion publishes MP4 to Download/BilibiliDownload on Android 10+; older versions use app-specific Downloads storage.
 - [~] Subtitle and danmaku exports still use Android DownloadManager and do not yet share the app-owned pause/resume/retry task engine.
@@ -56,9 +59,9 @@ Important limitations: task URLs are encrypted with Android Keystore, but Cookie
 
 ## 5. Subtitles and danmaku
 
-- [~] Subtitle track list retrieval.
-- [~] Subtitle URL is currently downloaded as JSON; SRT conversion/export is missing.
-- [~] Danmaku URL is currently downloaded as raw XML; CSV parsing/export is missing.
+- [x] Subtitle track list retrieval.
+- [~] Official subtitle JSON is converted to SRT and saved as a UTF-8 file.
+- [~] Danmaku XML is parsed and converted to CSV with time, mode, font size, color, timestamp, pool, user hash, row ID and content fields.
 
 ## 6. Local resources and players
 
@@ -90,21 +93,19 @@ Important limitations: task URLs are encrypted with Android Keystore, but Cookie
 ## Current implementation facts
 
 - The active UI is local HTML/CSS/JS in WebView; Kotlin provides the native bridge.
-- The current account UI accepts manually pasted Cookie only. It is not QR login.
-- Video downloads now use an app-owned task coordinator for progressive and DASH streams. It persists task state, encrypts saved stream URLs with Android Keystore, supports pause/resume/retry, and attempts to recover active tasks after process restart. DASH streams are muxed with Android MediaMuxer. Subtitle and danmaku exports still use Android DownloadManager.
-- Subtitle export currently keeps BCC JSON; danmaku export currently keeps XML. Neither matches BVD's SRT/CSV export.
+- The account UI supports Bilibili APP QR scanning and confirmation, manual Cookie fallback, encrypted Cookie persistence with Android Keystore, account name / UID lookup and logout. QR login still needs real-account device verification.
+- Video downloads use a process-wide app-owned coordinator shared by the WebView bridge and a foreground data-sync service. It persists task state, encrypts stream URLs with Android Keystore, supports pause/resume/retry, status filtering and batch operations, and attempts to recover active tasks after process restart. DASH streams are muxed with Android MediaMuxer.
+- Subtitle JSON is converted to SRT and danmaku XML to CSV; the exported text files are saved locally rather than being faked as DownloadManager URL tasks.
 - Local resources page is a placeholder that describes the Download directory.
 - The current player, account content pages, search, media processing, and most settings are absent.
 
 ## Suggested implementation order
 
-1. Improve the current DASH pipeline: codec compatibility, FFmpeg fallback, stream URL refresh, and real-device validation.
-2. Finish task engine parity: batch actions, foreground/background service integration, notifications, queue controls, and robust recovery.
-3. Expand EP/SS coverage, improve batch quality policy, and test real season/episode responses.
-4. QR login with QR image, clickable confirmation URL, polling, and secure session handling.
-5. Correct SRT and CSV export.
-6. Account content and search.
-7. Local resource library, video/audio players, media conversion, and remaining settings.
+1. Improve the DASH pipeline: codec compatibility, optional FFmpeg fallback, and real-device validation.
+2. Expand EP/SS coverage, improve batch quality policy, and test real season/episode responses.
+3. Add account content and search.
+4. Build the local resource library and video/audio players.
+5. Add media conversion and remaining settings.
 
 Do not mark an item complete until its Kotlin implementation, UI connection, and a meaningful test/build path exist.
 
