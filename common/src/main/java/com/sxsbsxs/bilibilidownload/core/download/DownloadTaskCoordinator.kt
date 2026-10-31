@@ -273,7 +273,7 @@ class DownloadTaskCoordinator(context: Context) {
         task.call = call
         var restartFromZero = false
         call.execute().use { response ->
-            if (response.code == 403 || response.code == 404 || response.code == 410) {
+            if (response.code == 401 || response.code == 403 || response.code == 404 || response.code == 410) {
                 throw ExpiredStreamException("B站视频直链已过期（HTTP ${response.code}），正在尝试重新获取")
             }
             if (response.code == 416 && offset > 0 && allowRangeReset) {
@@ -289,8 +289,8 @@ class DownloadTaskCoordinator(context: Context) {
             if (append) {
                 val range = response.header("Content-Range").orEmpty()
                 val start = Regex("bytes\\s+(\\d+)-").find(range)?.groupValues?.get(1)?.toLongOrNull()
-                val identityChanged = (validator.isNotBlank() && responseEtag.isNotBlank() && validator != responseEtag) ||
-                    (validator.isBlank() && modified.isNotBlank() && responseModified.isNotBlank() && modified != responseModified)
+                val identityChanged = (validator.isNotBlank() && validator != responseEtag) ||
+                    (validator.isBlank() && modified.isNotBlank() && modified != responseModified)
                 if (start != offset || identityChanged) {
                     restartFromZero = true
                     return@use
