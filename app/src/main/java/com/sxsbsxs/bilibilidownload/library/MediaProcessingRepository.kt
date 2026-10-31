@@ -15,6 +15,8 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import org.json.JSONObject
+import com.arthenica.ffmpegkit.FFmpegKit
+import com.arthenica.ffmpegkit.ReturnCode
 
 /** Container-level processing using Android's extractor/muxer APIs (no transcoding). */
 class MediaProcessingRepository(private val context: Context) {
@@ -91,6 +93,55 @@ class MediaProcessingRepository(private val context: Context) {
             output.delete()
         }
     }
+
+    fun extractAudioFfmpeg(uriText: String, sourceName: String): String {
+        val input = copyToCache(Uri.parse(uriText), sourceName)
+        val output = File(context.cacheDir, "ffmpeg_audio_${System.nanoTime()}.m4a")
+        try {
+            val command = "-y -nostdin -i ${quote(input.absolutePath)} -map 0:a:0 -vn -c:a aac -b:a 192k -movflags +faststart ${quote(output.absolutePath)}"
+            val session = FFmpegKit.execute(command)
+            if (!ReturnCode.isSuccess(session.returnCode) || !output.exists() || output.length() == 0L) {
+                throw IOException(session.failStackTrace ?: "FFmpeg 音频提取失败")
+            }
+            return publish(output, safeName(sourceName) + "_audio.m4a", "audio/mp4")
+        } finally {
+            input.delete()
+            output.delete()
+        }
+    }
+
+    fun convertToMp4(uriText: String, sourceName: String): String {
+        val input = copyToCache(Uri.parse(uriText), sourceName)
+        val output = File(context.cacheDir, "ffmpeg_mp4_${System.nanoTime()}.mp4")
+        try {
+            val command = "-y -nostdin -i ${quote(input.absolutePath)} -map 0:v? -map 0:a? -c:v mpeg4 -q:v 5 -threads 2 -c:a aac -b:a 160k -movflags +faststart ${quote(output.absolutePath)}"
+            val session = FFmpegKit.execute(command)
+            if (!ReturnCode.isSuccess(session.returnCode) || !output.exists() || output.length() == 0L) {
+                throw IOException(session.failStackTrace ?: "FFmpeg MP4 转换失败")
+            }
+            return publish(output, safeName(sourceName) + "_converted.mp4", "video/mp4")
+        } finally {
+            input.delete()
+            output.delete()
+        }
+    }
+
+    private fun copyToCache(uri: Uri, sourceName: String): File {
+        val extension = sourceName.substringAfterLast('.', "media").replace(Regex("[^A-Za-z0-9]"), "").take(8).ifBlank { "media" }
+        val target = File(context.cacheDir, "ffmpeg_input_${System.nanoTime()}.$extension")
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                target.outputStream().buffered().use { output -> input.copyTo(output) }
+            } ?: throw IOException("无法读取源媒体文件")
+            if (target.length() == 0L) throw IOException("源媒体文件为空")
+            return target
+        } catch (e: Exception) {
+            target.delete()
+            throw IOException("准备 FFmpeg 输入文件失败：" + (e.message ?: "未知错误"), e)
+        }
+    }
+
+    private fun quote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
 
     private fun copySelectedTracks(extractor: MediaExtractor, muxer: MediaMuxer, selected: Set<Int>, outputTracks: Map<Int, Int>) {
         val buffer = ByteBuffer.allocate(8 * 1024 * 1024)
