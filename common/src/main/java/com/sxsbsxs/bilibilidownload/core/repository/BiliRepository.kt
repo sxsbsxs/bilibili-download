@@ -105,15 +105,29 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
   val q=keyword.trim()
   if(q.isBlank())throw IOException("请输入搜索关键词")
   val type=when(kind){"video"->"video";"bangumi"->"media_bangumi";"up"->"bili_user";else->throw IOException("不支持的搜索类型")}
-  val root=signedGet("https://api.bilibili.com/x/web-interface/wbi/search/type", mapOf(
-   "search_type" to type, "keyword" to q, "page" to page.coerceIn(1,50).toString(),
+  val safePage=page.coerceIn(1,50).toString()
+  val params=mapOf(
+   "search_type" to type, "keyword" to q, "page" to safePage,
    "page_size" to "20", "order" to "totalrank", "duration" to "0",
    "tids" to "0", "web_location" to "1550101"
-  ),cookie)
-  if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","搜索失败"))
-  return root.optJSONObject("data")?:throw IOException("搜索结果为空")
+  )
+  // First use the current WBI endpoint with a guest session. If it rejects the request,
+  // try the public legacy search route before reporting failure.
+  val primary=try { signedGet("https://api.bilibili.com/x/web-interface/wbi/search/type",params,cookie) }
+   catch (_:Exception) { null }
+  if(primary!=null && primary.optInt("code",-1)==0)
+   return primary.optJSONObject("data")?:throw IOException("搜索结果为空")
+  val legacyUrl="https://api.bilibili.com/x/web-interface/search/type?search_type="+enc(type)+
+   "&keyword="+enc(q)+"&page="+safePage+"&order=totalrank"
+  val fallback=try { http.getJson(legacyUrl,cookie) } catch (e:Exception) {
+   throw IOException(primary?.optString("message")?.takeIf{it.isNotBlank()}?:e.message?:"搜索失败")
+  }
+  if(fallback.optInt("code",-1)!=0) {
+   val reason=fallback.optString("message").ifBlank{primary?.optString("message").orEmpty()}
+   throw IOException(reason.ifBlank{"搜索失败，请稍后重试"})
+  }
+  return fallback.optJSONObject("data")?:throw IOException("搜索结果为空")
  }
-
  fun accountSection(section:String,page:Int=1,cookie:String):org.json.JSONObject {
   val profile=accountProfile(cookie)
   val mid=profile.optLong("mid")
