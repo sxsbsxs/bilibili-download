@@ -16,6 +16,7 @@ import com.sxsbsxs.bilibilidownload.core.security.CookieSession
 import com.sxsbsxs.bilibilidownload.core.security.BiliQrLoginClient
 import com.sxsbsxs.bilibilidownload.core.security.CookieVault
 import com.sxsbsxs.bilibilidownload.core.utils.BiliExportFormatter
+import com.sxsbsxs.bilibilidownload.library.LocalMediaRepository
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
@@ -27,6 +28,7 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
     private val repository = BiliRepository()
     private val bangumiRepository = BangumiRepository()
     private val downloads = AndroidDownloadService(activity.applicationContext)
+    private val localMedia = LocalMediaRepository(activity.applicationContext)
     private val taskDownloads = DownloadTaskRuntime.get(activity.applicationContext)
     private val cookieVault = CookieVault(activity.applicationContext)
     private val session = CookieSession().apply { set(cookieVault.load()) }
@@ -370,6 +372,100 @@ class WebBridge(private val activity: Activity, private val webView: WebView) {
             } catch (e: Exception) {
                 respond(requestId, JSONObject().put("ok", true).put("loggedIn", session.isLoggedIn)
                     .put("error", e.message ?: "读取账号信息失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun searchContent(keyword: String, kind: String, page: Int, requestId: String) {
+        io.execute {
+            try {
+                val data = repository.searchContent(keyword, kind, page, session.get())
+                respond(requestId, JSONObject().put("ok", true).put("data", data).put("kind", kind))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "搜索失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun getAccountContent(section: String, mediaId: Long, page: Int, requestId: String) {
+        io.execute {
+            try {
+                val cookie = session.get() ?: throw IllegalStateException("请先登录 B 站账号")
+                val data = if (section == "favorites" && mediaId > 0L) {
+                    repository.favoriteResources(mediaId, page, cookie)
+                } else {
+                    repository.accountSection(section, page, cookie)
+                }
+                respond(requestId, JSONObject().put("ok", true).put("section", section).put("data", data))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "读取账号内容失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun getUpVideos(mid: Long, page: Int, requestId: String) {
+        io.execute {
+            try {
+                val data = repository.upVideos(mid, page, session.get())
+                respond(requestId, JSONObject().put("ok", true).put("mid", mid).put("data", data))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "读取 UP 主投稿失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun getLocalResources(requestId: String) {
+        io.execute {
+            try {
+                val rows = JSONArray()
+                localMedia.list().forEach { item ->
+                    rows.put(JSONObject().put("id", item.id).put("name", item.name).put("mime", item.mime)
+                        .put("size", item.size).put("modified", item.modified).put("uri", item.uri.toString())
+                        .put("category", item.category))
+                }
+                respond(requestId, JSONObject().put("ok", true).put("resources", rows))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "扫描本地资源失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun deleteLocalResource(uri: String, requestId: String) {
+        io.execute {
+            try {
+                val deleted = localMedia.delete(uri)
+                respond(requestId, JSONObject().put("ok", deleted).put("error", if (deleted) "" else "文件不存在或删除失败"))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "删除文件失败"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun openLocalResource(uri: String, mime: String, requestId: String) {
+        io.execute {
+            try {
+                localMedia.open(uri, mime)
+                respond(requestId, JSONObject().put("ok", true))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "无法打开文件"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun shareLocalResource(uri: String, mime: String, requestId: String) {
+        io.execute {
+            try {
+                localMedia.share(uri, mime)
+                respond(requestId, JSONObject().put("ok", true))
+            } catch (e: Exception) {
+                respond(requestId, JSONObject().put("ok", false).put("error", e.message ?: "无法导出文件"))
             }
         }
     }
