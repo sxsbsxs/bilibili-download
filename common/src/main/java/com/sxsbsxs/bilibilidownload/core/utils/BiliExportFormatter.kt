@@ -17,7 +17,7 @@ object BiliExportFormatter {
             val row = body.optJSONObject(i) ?: continue
             val start = row.optDouble("from", Double.NaN)
             val end = row.optDouble("to", Double.NaN)
-            val text = row.optString("content").replace("\\r", "").replace("\\n", " ").trim()
+            val text = row.optString("content").replace("\r", "").replace("\n", " ").trim()
             if (!start.isFinite() || !end.isFinite() || end <= start || text.isBlank()) continue
             out.append(index++).append('\n')
                 .append(timestamp(start)).append(" --> ").append(timestamp(end)).append('\n')
