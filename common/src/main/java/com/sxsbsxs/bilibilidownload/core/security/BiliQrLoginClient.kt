@@ -1,6 +1,7 @@
 package com.sxsbsxs.bilibilidownload.core.security
 
 import android.graphics.Bitmap
+import android.net.Uri
 import android.util.Base64
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
@@ -55,9 +56,14 @@ class BiliQrLoginClient {
                 0 -> {
                     val cookieParts = response.headers.values("Set-Cookie").mapNotNull { header ->
                         header.substringBefore(";").takeIf { it.contains("=") && !it.startsWith("=") }
+                    }.toMutableList()
+                    val loginUri = Uri.parse(data.optString("url"))
+                    for (name in listOf("SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5", "sid")) {
+                        val value = loginUri.getQueryParameter(name)
+                        if (!value.isNullOrBlank()) cookieParts.add(name + "=" + value)
                     }
                     val cookie = cookieParts.distinctBy { it.substringBefore("=") }.joinToString("; ")
-                    if (cookie.isBlank()) throw IOException("登录已确认，但未取得会话 Cookie；请重新扫码")
+                    if (cookieParts.none { it.startsWith("SESSDATA=") }) throw IOException("登录已确认，但未取得 SESSDATA；请重新扫码")
                     PollResult("success", "登录成功", cookie)
                 }
                 86101 -> PollResult("waiting", "等待使用 B 站 APP 扫码")
