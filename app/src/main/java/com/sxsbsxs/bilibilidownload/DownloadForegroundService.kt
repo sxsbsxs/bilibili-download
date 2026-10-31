@@ -10,6 +10,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import com.sxsbsxs.bilibilidownload.core.download.DownloadTaskRuntime
+import com.sxsbsxs.bilibilidownload.core.security.CookieVault
 
 /** Keeps app-owned downloads alive when the WebView activity is backgrounded or destroyed. */
 class DownloadForegroundService : Service() {
@@ -32,7 +33,8 @@ class DownloadForegroundService : Service() {
         super.onCreate()
         createChannel()
         startForeground(NOTIFICATION_ID, buildNotification(1))
-        DownloadTaskRuntime.get(applicationContext)
+        val coordinator = DownloadTaskRuntime.get(applicationContext)
+        coordinator.updateSessionCookie(CookieVault(applicationContext).load())
         handler.post(poll)
     }
 
