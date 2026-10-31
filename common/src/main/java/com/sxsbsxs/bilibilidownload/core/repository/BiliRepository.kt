@@ -94,6 +94,42 @@ class BiliRepository(private val http:BiliHttpClient=BiliHttpClient()) {
   if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","读取账号信息失败"))
   return root.optJSONObject("data")?:throw IOException("账号信息为空")
  }
+
+ fun searchContent(keyword:String,kind:String,page:Int=1,cookie:String?=null):org.json.JSONObject {
+  val q=keyword.trim()
+  if(q.isBlank())throw IOException("请输入搜索关键词")
+  val type=when(kind){"video"->"video";"bangumi"->"media_bangumi";"up"->"bili_user";else->throw IOException("不支持的搜索类型")}
+  val url="https://api.bilibili.com/x/web-interface/search/type?search_type="+type+"&keyword="+enc(q)+"&page="+page.coerceIn(1,50)
+  val root=http.getJson(url,cookie)
+  if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","搜索失败"))
+  return root.optJSONObject("data")?:throw IOException("搜索结果为空")
+ }
+
+ fun accountSection(section:String,page:Int=1,cookie:String):org.json.JSONObject {
+  val profile=accountProfile(cookie)
+  val mid=profile.optLong("mid")
+  val p=page.coerceIn(1,100)
+  val url=when(section){
+   "favorites"->"https://api.bilibili.com/x/v3/fav/folder/created/list-all?up_mid="+mid+"&jsonp=jsonp"
+   "history"->"https://api.bilibili.com/x/web-interface/history/cursor?ps=20&max=0&view_at=0&business="
+   "watchlater"->"https://api.bilibili.com/x/v2/history/toview"
+   "likes"->"https://api.bilibili.com/x/space/like/arc?vmid="+mid+"&pn="+p+"&ps=20"
+   "uploads"->"https://api.bilibili.com/x/space/arc/search?mid="+mid+"&pn="+p+"&ps=20&order=pubdate"
+   else->throw IOException("未知账号内容分类")
+  }
+  val root=http.getJson(url,cookie)
+  if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","读取账号内容失败"))
+  return root.optJSONObject("data")?:throw IOException("账号内容为空")
+ }
+
+ fun favoriteResources(mediaId:Long,page:Int=1,cookie:String):org.json.JSONObject {
+  if(mediaId<=0)throw IOException("收藏夹 ID 无效")
+  val url="https://api.bilibili.com/x/v3/fav/resource/list?media_id="+mediaId+"&pn="+page.coerceIn(1,100)+"&ps=20"
+  val root=http.getJson(url,cookie)
+  if(root.optInt("code",-1)!=0)throw IOException(root.optString("message","读取收藏夹失败"))
+  return root.optJSONObject("data")?:throw IOException("收藏夹内容为空")
+ }
+
  fun fetchText(url:String,cookie:String?=null):String {
   if(!url.startsWith("https://"))throw IOException("只允许下载 HTTPS 资源")
   return http.getText(url,cookie)
