@@ -379,7 +379,7 @@ class DownloadTaskCoordinator(context: Context) {
                 ?: prefs.getString("tasks", "[]")
         } catch (_: Exception) { "[]" }
         val rows = try { JSONArray(raw) } catch (_: Exception) { JSONArray() }
-        if (prefs.contains("tasks")) persist()
+        val migrateLegacy = prefs.contains("tasks")
         for (i in 0 until rows.length()) {
             val row = rows.optJSONObject(i) ?: continue
             val id = row.optLong("id")
@@ -392,6 +392,7 @@ class DownloadTaskCoordinator(context: Context) {
             if (task.status == 2 || task.status == 3) task.status = 1
             tasks[id] = task
         }
+        if (migrateLegacy) persist()
     }
 
     private fun checkActive(task: Task, generation: Long) {
