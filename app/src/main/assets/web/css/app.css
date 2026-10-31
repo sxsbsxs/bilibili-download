@@ -26,3 +26,13 @@
 #page-home .feature-grid,#page-home .section-heading{display:none}
 #video-ids,#video-desc{display:none}
 #page-account .account-content-card,#page-account .settings-card:has(#cookie-input){display:none}
+
+/* Keep parsed result focused on the decisions users need */
+#result .video-head img,#bangumi-result .video-head img{width:128px;height:90px}
+#result .video-meta h2,#bangumi-result .video-meta h2{font-size:16px;line-height:1.4}
+#result .video-desc,#result #video-ids,#result #quality-hint{display:none!important}
+#result .extra-actions{display:none!important}
+#result .field-group>label{font-size:12px;color:var(--text)}
+#result .quality-chip{font-size:12px;padding:9px 12px}
+#result #download-btn{font-size:14px;height:52px}
+#bangumi-result .muted{line-height:1.5}
